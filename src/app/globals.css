@@ -1,26 +1,160 @@
 @import "tailwindcss";
 
+/* Signal design tokens. Values are fixed by the house design system - do not
+   invent new colors here; extend by adding new semantic names that alias these. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --blue: #1D4ED8;
+  --blue-700: #1E40AF;
+  --blue-50: #EEF3FE;
+  --blue-100: #DCE6FB;
+
+  --lime: #BEF264;
+  --lime-ink: #3F6212;
+  --lime-soft: #F2FBDD;
+
+  --bg: #F7F8FB;
+  --surface: #FFFFFF;
+  --panel: #F4F6FB;
+
+  --ink: #14171C;
+  --body: #4A515E;
+  --muted: #8A92A0;
+
+  --line: #E7EAF1;
+  --line-2: #EEF0F5;
+
+  --ok: #0E9F6E;
+  --ok-soft: #E3F6EE;
+  --warn: #B45309;
+  --warn-soft: #FBF1E0;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+
+  /* Latin faces by default; swapped for Hebrew below by script, not in React. */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-plex-mono);
+}
+
+html[lang="he"] {
+  --font-sans: var(--font-heebo);
+  --font-display: var(--font-heebo);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-blue: var(--blue);
+  --color-blue-700: var(--blue-700);
+  --color-blue-50: var(--blue-50);
+  --color-blue-100: var(--blue-100);
+
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
+  --color-lime-soft: var(--lime-soft);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-panel: var(--panel);
+
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-muted: var(--muted);
+
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+
+  --radius-md: var(--radius);
+  --radius-sm: var(--radius-sm);
+
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--blue);
+}
+
+a:hover {
+  color: var(--blue-700);
+}
+
+/* Visible focus everywhere - no exceptions, no outline: none. */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* iOS Safari zooms in on focus and stays zoomed for any input under 16px. */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Small uppercase labels / timestamps - IBM Plex Mono, per the type system. */
+.mono-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+/* Low, warm shadow - never a pure-black shadow. */
+.shadow-soft {
+  box-shadow:
+    0 1px 2px rgba(20, 23, 28, 0.04),
+    0 8px 24px rgba(20, 23, 28, 0.06);
+}
+
+/* Padding for bottom-anchored elements (a sticky action bar, a bottom sheet) so
+   they clear the iPhone home-indicator safe area. */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Visually hidden until focused - first tab stop, skips the header for keyboard
+   and screen-reader users. */
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -3rem;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  z-index: 50;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 1rem;
 }
