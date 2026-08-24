@@ -370,3 +370,67 @@ describe('generateAvailability — the midnight boundary', () => {
     expect(slotMinutes(days[1]!)).toEqual([0, 60]);
   });
 });
+
+describe('generateAvailability — per-date overrides', () => {
+  it('opens a normally-closed day when the date is overridden', () => {
+    const saturday = '2026-06-20';
+    const [day] = generateAvailability(
+      input({
+        from: saturday,
+        to: saturday,
+        dateOverrides: [{ onDate: saturday, startMin: 10 * 60, endMin: 14 * 60 }],
+      }),
+    );
+    expect(day.state).toBe('open');
+    expect(slotMinutes(day)).toEqual([600, 660, 720, 780]);
+  });
+
+  it('replaces the weekly template rather than adding to it', () => {
+    const [day] = generateAvailability(
+      input({ dateOverrides: [{ onDate: MONDAY, startMin: 14 * 60, endMin: 17 * 60 }] }),
+    );
+    // The weekly Monday is 09:00–17:00; the override is the whole truth for this date.
+    expect(slotMinutes(day)).toEqual([840, 900, 960]);
+  });
+
+  it('supports several override rows on one date, so a break can be overridden too', () => {
+    const [day] = generateAvailability(
+      input({
+        dateOverrides: [
+          { onDate: MONDAY, startMin: 9 * 60, endMin: 11 * 60 },
+          { onDate: MONDAY, startMin: 15 * 60, endMin: 17 * 60 },
+        ],
+      }),
+    );
+    expect(slotMinutes(day)).toEqual([540, 600, 900, 960]);
+  });
+
+  it('leaves other dates on the weekly template', () => {
+    const days = generateAvailability(
+      input({
+        from: '2026-06-15',
+        to: '2026-06-16',
+        workingHours: [
+          { weekday: 1, startMin: 9 * 60, endMin: 17 * 60 },
+          { weekday: 2, startMin: 9 * 60, endMin: 17 * 60 },
+        ],
+        dateOverrides: [{ onDate: '2026-06-16', startMin: 9 * 60, endMin: 11 * 60 }],
+      }),
+    );
+    expect(slotMinutes(days[0]!)).toHaveLength(8); // untouched Monday
+    expect(slotMinutes(days[1]!)).toEqual([540, 600]);
+  });
+
+  it('still lets a closure shut an overridden day', () => {
+    const saturday = '2026-06-20';
+    const [day] = generateAvailability(
+      input({
+        from: saturday,
+        to: saturday,
+        dateOverrides: [{ onDate: saturday, startMin: 10 * 60, endMin: 14 * 60 }],
+        closures: [{ onDate: saturday, startMin: null, endMin: null }],
+      }),
+    );
+    expect(day.state).toBe('closed');
+  });
+});

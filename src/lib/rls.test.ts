@@ -115,3 +115,77 @@ describe('row-level security', () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+/**
+ * The guard that makes the next table safe by default.
+ *
+ * Tenant isolation is only as good as its least-protected table, and the failure mode is
+ * silent: add a table, forget the policy, and every business reads every other business's
+ * rows with no error anywhere. Rather than trusting a checklist at review time, this
+ * asserts the invariant over whatever tables actually exist — so the N+1th table cannot
+ * be forgotten, only deliberately exempted here.
+ */
+describe('every tenant table is protected', () => {
+  /**
+   * The tenancy tables themselves. They must be readable *before* a tenant context
+   * exists — resolving a public booking slug, signing a user in, onboarding an owner who
+   * has no business yet — so RLS on them would deadlock the app against itself.
+   * schema_migrations is the migration runner's bookkeeping and the app role cannot read
+   * it at all.
+   */
+  const EXEMPT = new Set(['businesses', 'users', 'memberships', 'schema_migrations']);
+
+  it('has row-level security enabled, forced, and a tenant policy', async () => {
+    const tables = await systemQuery<{
+      table_name: string;
+      rls_enabled: boolean;
+      rls_forced: boolean;
+      policy_count: string;
+    }>(
+      `SELECT c.relname AS table_name,
+              c.relrowsecurity      AS rls_enabled,
+              c.relforcerowsecurity AS rls_forced,
+              (SELECT count(*) FROM pg_policy p
+                WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation') AS policy_count
+         FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'torim' AND c.relkind = 'r'
+        ORDER BY c.relname`,
+    );
+
+    expect(tables.length).toBeGreaterThan(0);
+
+    const unprotected = tables
+      .filter((t) => !EXEMPT.has(t.table_name))
+      .filter((t) => !t.rls_enabled || !t.rls_forced || Number(t.policy_count) === 0)
+      .map(
+        (t) =>
+          `${t.table_name} (enabled=${t.rls_enabled}, forced=${t.rls_forced}, ` +
+          `policies=${t.policy_count})`,
+      );
+
+    expect(unprotected).toEqual([]);
+  });
+
+  it('knows about every table, so a new one has to be classified', async () => {
+    // Fails when a table is added, forcing a deliberate choice: give it a tenant policy,
+    // or add it to EXEMPT with a reason. Either way, somebody decided.
+    const tables = await systemQuery<{ table_name: string }>(
+      `SELECT c.relname AS table_name FROM pg_class c
+         JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'torim' AND c.relkind = 'r'`,
+    );
+    const known = new Set([
+      ...EXEMPT,
+      'services',
+      'working_hours',
+      'date_overrides',
+      'closures',
+      'customers',
+      'bookings',
+      'notifications',
+    ]);
+    const unclassified = tables.map((t) => t.table_name).filter((n) => !known.has(n));
+    expect(unclassified).toEqual([]);
+  });
+});

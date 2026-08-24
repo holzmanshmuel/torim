@@ -19,6 +19,13 @@ import {
 /** One row of the weekly template. Breaks are the gaps between rows on the same weekday. */
 export type WorkingHour = { weekday: number; startMin: Minutes; endMin: Minutes };
 
+/**
+ * Hours for one specific date, replacing the weekly template for that date entirely.
+ * This is how a business opens on a normally-closed Sunday, or works a one-off short
+ * day. Several rows on the same date express breaks, exactly as the weekly template does.
+ */
+export type DateOverride = { onDate: DateKey; startMin: Minutes; endMin: Minutes };
+
 /** A closed day, or a closed part of one. Null start/end means the whole day. */
 export type Closure = { onDate: DateKey; startMin: Minutes | null; endMin: Minutes | null };
 
@@ -47,6 +54,8 @@ export type AvailabilityInput = {
   workingHours: WorkingHour[];
   closures: Closure[];
   busy: BusyInterval[];
+  /** Optional per-date replacements for the weekly template. */
+  dateOverrides?: DateOverride[];
 };
 
 /**
@@ -74,19 +83,32 @@ export type DayAvailability = {
 
 type Window = { startMin: Minutes; endMin: Minutes };
 
-/** The open windows for a date, after subtracting that date's closures. */
+/**
+ * The open windows for a date: the weekly template (or that date's overrides, if any),
+ * minus that date's closures.
+ *
+ * An override REPLACES the template for its date rather than adding to it. Merging the
+ * two would make "open 14:00–17:00 today instead of the usual 09:00–17:00" impossible to
+ * express, and a business shortening a single day is more common than one extending it.
+ */
 function openWindows(
   dateKey: DateKey,
   policy: SlotPolicy,
   workingHours: WorkingHour[],
   closures: Closure[],
+  dateOverrides: DateOverride[],
 ): Window[] {
   const weekday = weekdayOf(dateKey, policy.timezone);
 
-  let windows: Window[] = workingHours
-    .filter((wh) => wh.weekday === weekday)
-    .map((wh) => ({ startMin: wh.startMin, endMin: wh.endMin }))
-    .sort((a, b) => a.startMin - b.startMin);
+  const overridesForDate = dateOverrides.filter((o) => o.onDate === dateKey);
+
+  let windows: Window[] = (
+    overridesForDate.length > 0
+      ? overridesForDate.map((o) => ({ startMin: o.startMin, endMin: o.endMin }))
+      : workingHours
+          .filter((wh) => wh.weekday === weekday)
+          .map((wh) => ({ startMin: wh.startMin, endMin: wh.endMin }))
+  ).sort((a, b) => a.startMin - b.startMin);
 
   for (const closure of closures) {
     if (closure.onDate !== dateKey) continue;
@@ -119,6 +141,7 @@ function overlaps(aFrom: Date, aUntil: Date, bFrom: Date, bUntil: Date): boolean
 
 export function generateAvailability(inputs: AvailabilityInput): DayAvailability[] {
   const { from, to, now, policy, service, workingHours, closures, busy } = inputs;
+  const dateOverrides = inputs.dateOverrides ?? [];
 
   if (policy.slotGranularityMin <= 0) {
     throw new Error('slotGranularityMin must be positive');
@@ -140,7 +163,7 @@ export function generateAvailability(inputs: AvailabilityInput): DayAvailability
       return { date: dateKey, state: 'beyond_horizon', slots: [] };
     }
 
-    const windows = openWindows(dateKey, policy, workingHours, closures);
+    const windows = openWindows(dateKey, policy, workingHours, closures, dateOverrides);
     if (windows.length === 0) {
       return { date: dateKey, state: 'closed', slots: [] };
     }
