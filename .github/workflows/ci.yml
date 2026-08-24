@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel a superseded run on the same branch/PR so pushes don't queue up behind
+# stale runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+
+  # ---------------------------------------------------------------------------
+  # NO GITHUB SECRETS ARE USED IN THIS WORKFLOW, ON PURPOSE.
+  #
+  # This repo is public, and forks must be able to run this workflow with zero
+  # setup — a workflow gated on repo secrets simply doesn't run on a fork's PRs.
+  # The only "database" here is the throwaway `postgres` service container below,
+  # which exists for the lifetime of this job and is never reachable from outside
+  # the runner. Hard-coding its credentials in this file is deliberate, not an
+  # oversight: there is nothing secret about a password to a database that gets
+  # destroyed the moment the job ends.
+  #
+  # Two distinct roles are used against that container, matching how the app
+  # itself is meant to be run (see README's warning box and src/lib/db.ts):
+  #   - the OWNER role (MIGRATE_DATABASE_URL) — only for `npm run migrate` and
+  #     `npm run db:grant`, which need DDL/role-creation rights.
+  #   - the restricted APP role (DATABASE_URL / TEST_DATABASE_URL) — everything
+  #     else. This is the role the running app itself would connect as.
+  DATABASE_URL: postgres://torim_app:torim_ci_app_pw@localhost:5432/torim_ci
+  TEST_DATABASE_URL: postgres://torim_app:torim_ci_app_pw@localhost:5432/torim_ci
+  APP_DB_ROLE: torim_app
+  APP_DB_PASSWORD: torim_ci_app_pw
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: torim_ci_owner
+          POSTGRES_PASSWORD: torim_ci_owner_pw
+          POSTGRES_DB: torim_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U torim_ci_owner -d torim_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - run: npm ci
+
+      # --- Schema setup, as the OWNER role -----------------------------------
+      # Both of these need DDL / role-creation rights the restricted app role
+      # deliberately does not have, so they get MIGRATE_DATABASE_URL pointed at
+      # the container's owner role for just these two steps.
+      - name: Migrate schema (owner role)
+        run: npm run migrate
+        env:
+          MIGRATE_DATABASE_URL: postgres://torim_ci_owner:torim_ci_owner_pw@localhost:5432/torim_ci
+
+      - name: Grant restricted app role (owner role)
+        run: npm run db:grant
+        env:
+          MIGRATE_DATABASE_URL: postgres://torim_ci_owner:torim_ci_owner_pw@localhost:5432/torim_ci
+
+      # --- Everything from here on connects as the restricted APP role -------
+      # (DATABASE_URL / TEST_DATABASE_URL, set once at workflow level above).
+      #
+      # This check has to come before the test suite, not after: Postgres silently
+      # skips row-level security for superusers and for roles with BYPASSRLS — no
+      # error, no warning. If DATABASE_URL/TEST_DATABASE_URL pointed at the owner
+      # role instead of the restricted app role, every tenant-isolation test would
+      # pass while proving nothing at all, because RLS would simply not be in
+      # effect for that connection.
+      - name: Assert DATABASE_URL is the restricted app role, not the owner
+        run: npm run db:check-role
+
+      - run: npm run lint
+
+      # Runs next build (rather than `npm run build`, which is the same command)
+      # ahead of the standalone typecheck step below — see that step's comment
+      # for why the order matters.
+      - name: Build
+        run: npx next build
+
+      # This must run AFTER the build, not before. Next.js's App Router generates
+      # route-type helpers into .next/types at build time (e.g. typed `params` /
+      # `searchParams` for each route). Run `tsc --noEmit` before those exist and
+      # it hard-fails with missing-type errors for every typed route export, on a
+      # codebase that has no actual type errors.
+      - run: npm run typecheck
+
+      # Database-backed: TEST_DATABASE_URL (the restricted app role, set above)
+      # points at the same migrated, granted torim_ci database used by the steps
+      # above. There is no mocking layer — these tests assert real RLS behavior
+      # against real Postgres.
+      - run: npm run test
