@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Claude Code / graft shims — CommonJS by necessity (Claude
+    // Code loads them with require()), so no-require-imports fails CI.
+    ".claude/**",
   ]),
 ]);
 
