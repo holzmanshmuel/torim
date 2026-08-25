@@ -51,10 +51,18 @@ npm ci
 cp .env.example .env.local
 ```
 
-Create a database, then fill in `.env.local` — at minimum `DATABASE_URL`,
-`MIGRATE_DATABASE_URL`, `APP_DB_ROLE`, `APP_DB_PASSWORD`, and `SESSION_PASSWORD`
-(`openssl rand -base64 32`). See the comments in `.env.example` for what each
-variable does and which are required.
+Create a database. **Name it with a `_dev` or `_test` suffix** — `npm run db:seed`
+is destructive and refuses to run against anything else, so that the demo seed can
+never be pointed at a real instance by accident:
+
+```bash
+createdb torim_dev
+```
+
+Then fill in `.env.local` — at minimum `DATABASE_URL`, `MIGRATE_DATABASE_URL`,
+`APP_DB_ROLE`, `APP_DB_PASSWORD`, and `SESSION_PASSWORD` (`openssl rand -base64 32`).
+The defaults in `.env.example` already assume `torim_dev`. See the comments there for
+what each variable does and which are required.
 
 ```bash
 # Apply the schema, as the database owner (MIGRATE_DATABASE_URL).
