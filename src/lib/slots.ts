@@ -81,28 +81,38 @@ export type DayAvailability = {
   slots: Date[];
 };
 
-type Window = { startMin: Minutes; endMin: Minutes };
+/** A stretch of a day the business is open. Minutes from local midnight. */
+export type OpenWindow = { startMin: Minutes; endMin: Minutes };
+
+export type OpenWindowsInput = {
+  dateKey: DateKey;
+  timezone: string;
+  workingHours: readonly WorkingHour[];
+  closures?: readonly Closure[];
+  dateOverrides?: readonly DateOverride[];
+};
 
 /**
  * The open windows for a date: the weekly template (or that date's overrides, if any),
  * minus that date's closures.
  *
+ * Exported because the admin views need exactly this rule to tell whether a booking sits
+ * outside opening hours, and a second copy of schedule logic drifts from the first. This
+ * is the only definition.
+ *
  * An override REPLACES the template for its date rather than adding to it. Merging the
  * two would make "open 14:00–17:00 today instead of the usual 09:00–17:00" impossible to
  * express, and a business shortening a single day is more common than one extending it.
  */
-function openWindows(
-  dateKey: DateKey,
-  policy: SlotPolicy,
-  workingHours: WorkingHour[],
-  closures: Closure[],
-  dateOverrides: DateOverride[],
-): Window[] {
-  const weekday = weekdayOf(dateKey, policy.timezone);
+export function openWindowsForDate(input: OpenWindowsInput): OpenWindow[] {
+  const { dateKey, timezone, workingHours } = input;
+  const closures = input.closures ?? [];
+  const dateOverrides = input.dateOverrides ?? [];
 
+  const weekday = weekdayOf(dateKey, timezone);
   const overridesForDate = dateOverrides.filter((o) => o.onDate === dateKey);
 
-  let windows: Window[] = (
+  let windows: OpenWindow[] = (
     overridesForDate.length > 0
       ? overridesForDate.map((o) => ({ startMin: o.startMin, endMin: o.endMin }))
       : workingHours
@@ -116,7 +126,7 @@ function openWindows(
     // A whole-day closure removes everything.
     if (closure.startMin === null || closure.endMin === null) return [];
 
-    const cut: Window[] = [];
+    const cut: OpenWindow[] = [];
     for (const w of windows) {
       if (closure.endMin <= w.startMin || closure.startMin >= w.endMin) {
         cut.push(w); // no overlap
@@ -132,7 +142,9 @@ function openWindows(
     windows = cut;
   }
 
-  return windows.filter((w) => w.endMin > w.startMin);
+  return windows
+    .filter((w) => w.endMin > w.startMin)
+    .sort((a, b) => a.startMin - b.startMin);
 }
 
 function overlaps(aFrom: Date, aUntil: Date, bFrom: Date, bUntil: Date): boolean {
@@ -163,7 +175,13 @@ export function generateAvailability(inputs: AvailabilityInput): DayAvailability
       return { date: dateKey, state: 'beyond_horizon', slots: [] };
     }
 
-    const windows = openWindows(dateKey, policy, workingHours, closures, dateOverrides);
+    const windows = openWindowsForDate({
+      dateKey,
+      timezone: policy.timezone,
+      workingHours,
+      closures,
+      dateOverrides,
+    });
     if (windows.length === 0) {
       return { date: dateKey, state: 'closed', slots: [] };
     }
