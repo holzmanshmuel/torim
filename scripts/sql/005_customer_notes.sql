@@ -1,0 +1,11 @@
+-- 005 — the owner's own note about a customer.
+--
+-- Free text the owner writes and the customer never sees: "prefers the 9am slot",
+-- "allergic to the peroxide". Distinct from torim.bookings.note, which is what the
+-- customer typed when booking.
+--
+-- Worth recording that the salon this product is drawn from explicitly declined
+-- birthdays, photos and personal notes about clients. This is deliberately none of
+-- those: it is one optional free-text field, and an owner who does not want it simply
+-- never types in it.
+ALTER TABLE torim.customers ADD COLUMN IF NOT EXISTS notes text;

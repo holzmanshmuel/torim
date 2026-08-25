@@ -189,16 +189,21 @@ export async function createBooking(args: CreateBookingArgs): Promise<Booking> {
     const conflictId = await findConflict(client, blocksFrom, blocksUntil);
     if (conflictId && !args.allowOverlap) throw new BookingConflictError(conflictId);
 
-    // A customer-initiated write is something the owner has not seen yet. Her own entries
-    // obviously need no such flag.
-    const customerChange = source === 'customer' ? new Date() : null;
-
+    // A customer-initiated write is something the owner has not seen yet; her own
+    // entries need no such flag.
+    //
+    // Stamped with SQL now() rather than a JavaScript Date so every timestamp in this
+    // table comes from one clock. now() is the transaction start time, so a JS Date
+    // taken here would sit slightly *after* it — and the unseen-changes badge compares
+    // this column against owner_seen_at, which is also now(). Mixing the two made a
+    // booking stay flagged immediately after the owner cleared it.
     const { rows } = await client.query<BookingRow>(
       `INSERT INTO torim.bookings
          (customer_id, service_id, starts_at, ends_at,
           buffer_before_min, buffer_after_min, status, price_minor, note, source,
           last_customer_change_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+               CASE WHEN $10 = 'customer' THEN now() ELSE NULL END)
        RETURNING ${RETURNING}`,
       [
         customerId,
@@ -211,7 +216,6 @@ export async function createBooking(args: CreateBookingArgs): Promise<Booking> {
         service.price_minor,
         args.note ?? null,
         source,
-        customerChange,
       ],
     );
 

@@ -54,3 +54,39 @@ describe('parseLangCookie', () => {
     expect(parseLangCookie('anything-else')).toBe('en');
   });
 });
+
+describe('getT with a feature dictionary', () => {
+  const featureStrings = {
+    en: { 'booking.pick': 'Pick a time', 'booking.only': 'English only' },
+    he: { 'booking.pick': 'בחרו שעה' },
+  } as const;
+
+  it('resolves a feature key in the active language', () => {
+    const t = getT('he', featureStrings);
+    expect(t('booking.pick')).toBe('בחרו שעה');
+  });
+
+  it('falls back to English for a feature key with no translation', () => {
+    const t = getT('he', featureStrings);
+    expect(t('booking.only')).toBe('English only');
+  });
+
+  it('still resolves core keys when a feature dictionary is supplied', () => {
+    const t = getT('en', featureStrings);
+    expect(t('nav.home')).toBe(dict.en['nav.home']);
+  });
+
+  it('lets a feature dictionary override a core key', () => {
+    const t = getT('en', { en: { 'nav.home': 'Start' }, he: {} });
+    expect(t('nav.home')).toBe('Start');
+  });
+
+  it('returns the key itself when nothing has it', () => {
+    const t = getT('en', featureStrings);
+    expect(t('nothing.here')).toBe('nothing.here');
+  });
+
+  it('behaves exactly as before when no feature dictionary is given', () => {
+    expect(getT('en')('nav.home')).toBe(dict.en['nav.home']);
+  });
+});

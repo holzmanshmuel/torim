@@ -163,10 +163,33 @@ const he: Dictionary = {
 
 export const dict: Record<Lang, Dictionary> = { en, he };
 
-/** Returns a lookup that falls back to English, then to the key itself. */
-export function getT(lang: Lang): (key: string) => string {
+/**
+ * A dictionary contributed by one feature area, merged over the core one.
+ *
+ * Each feature keeps its own strings beside its routes rather than everything piling
+ * into this file. It also means two features being built at once cannot collide in the
+ * same dictionary literal.
+ */
+export type FeatureDictionary = {
+  readonly [L in Lang]: Readonly<Record<string, string>>;
+};
+
+/**
+ * Returns a lookup that resolves, in order: the feature dictionary in the active
+ * language, the core dictionary in the active language, then the same two in English,
+ * and finally the key itself.
+ *
+ * Falling back to the key rather than to an empty string means a missing translation
+ * shows up as `booking.confirm` on screen — visibly wrong, rather than an invisible
+ * blank that reads as a layout bug.
+ */
+export function getT(lang: Lang, feature?: FeatureDictionary): (key: string) => string {
+  const featurePrimary = feature?.[lang];
+  const featureEnglish = feature?.en;
   const primary = dict[lang];
-  return (key: string) => primary[key] ?? dict.en[key] ?? key;
+
+  return (key: string) =>
+    featurePrimary?.[key] ?? primary[key] ?? featureEnglish?.[key] ?? dict.en[key] ?? key;
 }
 
 export function dirFor(lang: Lang): 'rtl' | 'ltr' {
