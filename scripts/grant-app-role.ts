@@ -55,6 +55,9 @@ async function main(): Promise<void> {
     await client.query(
       `GRANT EXECUTE ON FUNCTION torim.create_business_with_owner(uuid, text, text, text, text) TO ${ROLE}`,
     );
+    await client.query(
+      `GRANT EXECUTE ON FUNCTION torim.business_for_manage_token(text) TO ${ROLE}`,
+    );
 
     // The migration bookkeeping table is the owner's business, not the app's.
     await client.query(`REVOKE ALL ON torim.schema_migrations FROM ${ROLE}`);
