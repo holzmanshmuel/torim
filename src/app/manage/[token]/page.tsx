@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import { clientAddress, manageReadLimiter } from '@/app/b/lib/rate-limits';
 import { notFound } from 'next/navigation';
 import { getLang, getT, type Lang } from '@/lib/i18n';
 import { findBookingByManageToken } from '@/lib/manage';
@@ -41,6 +43,16 @@ export default async function ManagePage({ params }: Params) {
   const { token: rawToken } = await params;
   const token = parseManageToken(rawToken);
   if (!token) notFound();
+
+  // Every other consumer of the token oracle is limited — the .ics route and all three
+  // manage actions. This page was the exception, and it is the highest-value probe
+  // surface of the four because it discloses the customer's name and phone.
+  //
+  // Not a guessing defence: 244 bits is not brute-forced at any rate. It bounds the
+  // unauthenticated work a flood of `GET /manage/<64 hex>` can make the server do, and
+  // it stops this one path contradicting the reasoning the sibling actions rely on.
+  const gate = manageReadLimiter.check(`manage-read:${clientAddress(await headers())}`);
+  if (!gate.allowed) notFound();
 
   const found = await findBookingByManageToken(token);
   if (!found) notFound();

@@ -58,3 +58,20 @@ describe('stripBidiControls', () => {
     expect(stripBidiControls(value)).toBe('abc');
   });
 });
+
+describe('stripBidiControls — the full Bidi_Control set', () => {
+  /**
+   * U+061C ARABIC LETTER MARK is `Bidi_Control=Yes` and was missing from the class. It
+   * is a weak marker like LRM/RLM rather than an override, so it can nudge neutral runs
+   * in an RTL admin list but cannot reverse a whole string — low impact, but a
+   * one-character gap in a function whose entire job is that set.
+   */
+  it('strips U+061C ARABIC LETTER MARK', () => {
+    expect(stripBidiControls('\u061C\u061CAdmin')).toBe('Admin');
+  });
+
+  it('still strips every other member of the set', () => {
+    const all = '\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C';
+    expect(stripBidiControls(`a${all}b`)).toBe('ab');
+  });
+});

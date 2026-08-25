@@ -39,6 +39,23 @@ export class CustomerBlockedError extends Error {
   }
 }
 
+/**
+ * The customer already holds as many future bookings as this business allows.
+ *
+ * Rate limits bound how fast someone works; this bounds how much they can hold. Without
+ * it, incrementing the phone number per request gives a fresh limiter bucket every time
+ * and a whole booking horizon can be filled one request at a time.
+ */
+export class TooManyBookingsError extends Error {
+  readonly limit: number;
+
+  constructor(limit: number) {
+    super('You already have the maximum number of upcoming appointments.');
+    this.name = 'TooManyBookingsError';
+    this.limit = limit;
+  }
+}
+
 export type PublicBookingRequest = {
   businessId: string;
   serviceId: string;
@@ -63,9 +80,19 @@ export type PublicBookingResult = {
   business: PublicBusiness;
 };
 
-/** Trim, collapse whitespace, and strip bidi overrides before anything is stored. */
+/**
+ * Zero-width and formatting characters that are not bidi controls.
+ *
+ * JavaScript's `\s` does not match these and Postgres `btrim` strips spaces only, so a
+ * name made entirely of them passed validation, `cleanText`, and the
+ * `length(btrim(name)) > 0` CHECK — storing a customer who renders as blank everywhere
+ * in the owner's admin.
+ */
+const ZERO_WIDTH = /[\u200B-\u200D\u2060\uFEFF]/g;
+
+/** Trim, collapse whitespace, and strip invisible characters before anything is stored. */
 function cleanText(value: string): string {
-  return stripBidiControls(value).replace(/\s+/g, ' ').trim();
+  return stripBidiControls(value).replace(ZERO_WIDTH, '').replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -134,17 +161,15 @@ export async function bookPublicly(
     if (existing[0].blocked) throw new CustomerBlockedError();
     customerId = existing[0].id;
 
-    // Deliberately no UPDATE of the name. The owner's record wins over form input.
+    // Deliberately no UPDATE of anything on an existing customer — not the name, and not
+    // the email either.
     //
-    // The address fills a blank but never replaces one. Same reasoning as the name, and
-    // sharper: anyone who knows a customer's phone number could otherwise redirect her
-    // confirmations to an address of their choosing.
-    if (email && !existing[0].email) {
-      await query('UPDATE torim.customers SET email = $2, updated_at = now() WHERE id = $1', [
-        customerId,
-        email,
-      ]);
-    }
+    // An earlier version filled an empty email "because a blank is not a replacement".
+    // That blank is exactly what an attacker wants: a customer the owner created by hand
+    // has no address, so one booking with the victim's phone and the attacker's email
+    // redirects every future confirmation and reminder — each carrying a capability URL
+    // that cancels and moves her real appointments. A returning customer who wants an
+    // address on file tells the owner.
   } else {
     const created = await query<{ id: string }>(
       'INSERT INTO torim.customers (name, phone_e164, email) VALUES ($1, $2, $3) RETURNING id',
@@ -156,6 +181,19 @@ export async function bookPublicly(
 
   // The owner's screening toggle is what stands in for phone verification in v1: an
   // unknown number's first booking waits for her to confirm it.
+  // How much one customer may hold at once. Counted after the customer is resolved, so
+  // it applies to the person rather than to the request.
+  if (!customerCreated) {
+    const held = await query<{ count: string }>(
+      `SELECT count(*) AS count FROM torim.bookings
+        WHERE customer_id = $1 AND starts_at > $2 AND status IN ('pending', 'confirmed')`,
+      [customerId, now],
+    );
+    if (Number(held[0]?.count ?? 0) >= business.maxFutureBookingsPerCustomer) {
+      throw new TooManyBookingsError(business.maxFutureBookingsPerCustomer);
+    }
+  }
+
   const status = business.confirmNewCustomers && customerCreated ? 'pending' : 'confirmed';
 
   const booking = await createBooking({

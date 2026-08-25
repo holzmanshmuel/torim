@@ -68,18 +68,28 @@ export async function GET(request: NextRequest, context: { params: Promise<{ tok
 
   const businessName = pickName(lang, business.name, business.nameHe);
   const serviceName = pickName(lang, service.name, service.nameHe);
-  const manageUrl = `${publicOrigin(request)}/manage/${token}`;
+  const origin = publicOrigin(request);
+
+  // Deliberately NOT the manage link.
+  //
+  // A calendar file is the one place a capability URL escapes the deployment even when
+  // no transport is configured, which is the default. The customer imports it into a
+  // work calendar; DESCRIPTION and URL sync verbatim; and anyone with "see all event
+  // details" — the common org-wide default — can then open her booking and cancel or
+  // move it. She already has the manage link from the confirmation screen; the calendar
+  // entry does not need to carry a credential.
+  const publicBookingUrl = `${origin}/b/${found.business.slug}`;
 
   const body = buildIcs({
     uid: bookingUid(booking.id),
     start: booking.startsAt,
     end: booking.endsAt,
     summary: `${serviceName} · ${businessName}`,
-    description: manageUrl,
+    description: publicBookingUrl,
     location: businessName,
     timezone: business.timezone,
     status: ICS_STATUS[booking.status],
-    url: manageUrl,
+    url: publicBookingUrl,
     sequence: found.revision,
   });
 

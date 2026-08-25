@@ -44,15 +44,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  await runWithTenant(parsed.businessId, async () => {
+  const matched = await runWithTenant(parsed.businessId, async () => {
     if (parsed.status === 'sent') {
-      await markSent(parsed.id, parsed.transport);
-    } else if (parsed.status === 'skipped') {
-      await markSkipped(parsed.id, parsed.transport, parsed.reason ?? 'Reported skipped.');
-    } else {
-      await markFailed(parsed.id, parsed.transport, parsed.error ?? 'Reported failed.');
+      return markSent(parsed.id, parsed.transport);
     }
+    if (parsed.status === 'skipped') {
+      return markSkipped(parsed.id, parsed.transport, parsed.reason ?? 'Reported skipped.');
+    }
+    return markFailed(parsed.id, parsed.transport, parsed.error ?? 'Reported failed.');
   });
+
+  // Under RLS a wrong (id, businessId) pair updates nothing rather than erroring. Saying
+  // "ok" to that is worse than an error: a drainer that already sent the message is told
+  // it succeeded, the row stays queued, the next poll hands it out again, and the
+  // customer gets a second copy carrying the same capability URL.
+  if (!matched) {
+    return NextResponse.json(
+      { error: 'No queued notification matches that id for that business.' },
+      { status: 404, headers: { 'cache-control': 'no-store, private' } },
+    );
+  }
 
   return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store, private' } });
 }

@@ -90,23 +90,38 @@ export async function listDue(args: { now?: Date; limit?: number } = {}): Promis
   return rows.map(toQueued);
 }
 
-export async function markSent(id: string, transport: string): Promise<void> {
-  await query(
+/**
+ * All three marks return whether a row actually changed.
+ *
+ * Under RLS a wrong (id, tenant) pair updates nothing rather than erroring, so silence
+ * is indistinguishable from success — and a caller told "ok" leaves the row queued to be
+ * handed out and sent a second time.
+ */
+export async function markSent(id: string, transport: string): Promise<boolean> {
+  const rows = await query<{ id: string }>(
     `UPDATE torim.notifications
         SET status = 'sent', transport = $2, sent_at = now(), attempts = attempts + 1,
             last_error = NULL
-      WHERE id = $1`,
+      WHERE id = $1
+      RETURNING id`,
     [id, transport],
   );
+  return rows.length > 0;
 }
 
-export async function markFailed(id: string, transport: string, error: string): Promise<void> {
-  await query(
+export async function markFailed(
+  id: string,
+  transport: string,
+  error: string,
+): Promise<boolean> {
+  const rows = await query<{ id: string }>(
     `UPDATE torim.notifications
         SET status = 'failed', transport = $2, last_error = $3, attempts = attempts + 1
-      WHERE id = $1`,
+      WHERE id = $1
+      RETURNING id`,
     [id, transport, error.slice(0, 2000)],
   );
+  return rows.length > 0;
 }
 
 /**
@@ -116,13 +131,19 @@ export async function markFailed(id: string, transport: string, error: string): 
  * email-only deployment will never become sendable, and an attempt counter is for
  * deciding whether to try again.
  */
-export async function markSkipped(id: string, transport: string, reason: string): Promise<void> {
-  await query(
+export async function markSkipped(
+  id: string,
+  transport: string,
+  reason: string,
+): Promise<boolean> {
+  const rows = await query<{ id: string }>(
     `UPDATE torim.notifications
         SET status = 'skipped', transport = $2, last_error = $3
-      WHERE id = $1`,
+      WHERE id = $1
+      RETURNING id`,
     [id, transport, reason.slice(0, 2000)],
   );
+  return rows.length > 0;
 }
 
 /**

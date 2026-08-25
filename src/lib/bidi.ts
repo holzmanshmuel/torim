@@ -34,7 +34,7 @@ export function isolate(text: string): string {
  *  - U+2066-U+2069: LRI, RLI, FSI, PDI
  *  - U+200E-U+200F: LRM, RLM
  */
-const BIDI_CONTROL_RE = /[\u202A-\u202E\u2066-\u2069\u200E\u200F]/g;
+const BIDI_CONTROL_RE = /[\u202A-\u202E\u2066-\u2069\u061C\u200E\u200F]/g;
 
 /**
  * Strips bidi override/embedding characters from user-supplied strings. Run this on

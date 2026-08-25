@@ -24,6 +24,17 @@ export type RateLimitResult = {
 export type RateLimiterOptions = {
   limit: number;
   windowMs: number;
+  /**
+   * Hard ceiling on tracked keys.
+   *
+   * Keys derive from request headers, so their number is attacker-influenced. Eviction
+   * only runs once per window, which means a full window of distinct keys accumulates
+   * first — measured at 293MB over 20k requests before the ceiling existed. The bound
+   * makes the worst case arithmetic instead of a hope. Evicting the oldest costs an
+   * attacker nothing they did not already have (a fresh key is a fresh bucket either
+   * way), so nothing is weakened by it.
+   */
+  maxKeys?: number;
   /** Injectable clock, so tests never sleep. */
   now?: () => number;
 };
@@ -37,6 +48,7 @@ export type RateLimiter = {
 
 export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
   const { limit, windowMs } = options;
+  const maxKeys = options.maxKeys ?? 20_000;
   const now = options.now ?? Date.now;
 
   if (limit < 1) throw new Error('limit must be at least 1');
@@ -81,6 +93,16 @@ export function createRateLimiter(options: RateLimiterOptions): RateLimiter {
 
       recent.push(current);
       hits.set(key, recent);
+
+      // Map iterates in insertion order, so the first entries are the oldest.
+      if (hits.size > maxKeys) {
+        evictStale(cutoff);
+        for (const oldest of hits.keys()) {
+          if (hits.size <= maxKeys) break;
+          if (oldest !== key) hits.delete(oldest);
+        }
+      }
+
       return { allowed: true, remaining: limit - recent.length, retryAfterMs: 0 };
     },
 

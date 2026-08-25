@@ -28,7 +28,9 @@ import { describe, expect, it } from 'vitest';
 const BIDI_CONTROLS =
   /[\u202A-\u202E\u2066-\u2069\u200E\u200F]/u;
 
-const CHECKED_EXTENSIONS = ['.ts', '.tsx', '.css', '.sql', '.mts'];
+// Markdown and YAML included deliberately: Hebrew-bearing docs are exactly where a
+// pasted invisible character lands, and docs are what contributors read.
+const CHECKED_EXTENSIONS = ['.ts', '.tsx', '.css', '.sql', '.mts', '.md', '.yml', '.yaml'];
 
 function repoSourceFiles(): string[] {
   // Tracked and untracked-but-not-ignored, so a new file is covered before it is added.

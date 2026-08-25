@@ -19,7 +19,12 @@ const PASSWORD = process.env.APP_DB_PASSWORD;
 async function main(): Promise<void> {
   const connectionString = process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error('DATABASE_URL is not set. Point it at the schema owner.');
+    console.error(
+      'Neither MIGRATE_DATABASE_URL nor DATABASE_URL is set.\n' +
+        'This script needs the SCHEMA OWNER connection — the same one `npm run migrate` uses —\n' +
+        'because creating a role and granting on a schema are owner-level operations.\n' +
+        'Set MIGRATE_DATABASE_URL; DATABASE_URL is the restricted app role and cannot do this.',
+    );
     process.exit(1);
   }
   if (!PASSWORD) {

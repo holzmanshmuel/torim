@@ -341,3 +341,38 @@ describe('a cancelled booking', () => {
     expect(rows[0]!.status).toBe('sent');
   });
 });
+
+/**
+ * Reporting an outcome for a notification that isn't there.
+ *
+ * RLS makes a wrong (id, businessId) pair update zero rows rather than error. If the
+ * caller is told "ok" anyway, an external drainer that sent the message and then
+ * reported the wrong tenant is told it succeeded, the row stays queued, the next poll
+ * hands it out again — and the customer receives a second copy, carrying the same
+ * capability URL.
+ */
+describe('marking a notification that does not match', () => {
+  it('reports that nothing was updated rather than silently succeeding', async () => {
+    const absent = '00000000-0000-0000-0000-0000000000ff';
+    expect(await runWithTenant(businessId, () => markSent(absent, 'smtp'))).toBe(false);
+    expect(await runWithTenant(businessId, () => markFailed(absent, 'smtp', 'x'))).toBe(false);
+    expect(await runWithTenant(businessId, () => markSkipped(absent, 'smtp', 'x'))).toBe(false);
+  });
+
+  it('reports success when the row really was updated', async () => {
+    const bookingId = await makeBooking(17 * 60);
+    const id = await runWithTenant(businessId, () =>
+      enqueue({ bookingId, kind: 'booking_confirmed', channel: 'email', locale: 'en', sendAfter: at(9 * 60) }),
+    );
+    expect(await runWithTenant(businessId, () => markSent(id!, 'smtp'))).toBe(true);
+  });
+
+  it('reports a miss when the notification belongs to another tenant', async () => {
+    const bookingId = await makeBooking(18 * 60);
+    const id = await runWithTenant(businessId, () =>
+      enqueue({ bookingId, kind: 'booking_confirmed', channel: 'email', locale: 'en', sendAfter: at(9 * 60) }),
+    );
+    // Correct id, wrong tenant — exactly the drainer mistake this guards.
+    expect(await runWithTenant(otherBusinessId, () => markSent(id!, 'smtp'))).toBe(false);
+  });
+});

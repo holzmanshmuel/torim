@@ -92,3 +92,29 @@ describe('createRateLimiter', () => {
     expect(r.retryAfterMs).toBeGreaterThan(0);
   });
 });
+
+describe('bounded memory', () => {
+  /**
+   * The key came from a request header. Even validated, the map must not grow without
+   * limit between sweeps — eviction only ran once per window, so a full window's worth
+   * of distinct keys accumulated first. A hard ceiling makes the worst case arithmetic
+   * rather than a hope.
+   */
+  it('never holds more than maxKeys entries', () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ limit: 5, windowMs: 60_000, maxKeys: 100, now: clock.now });
+
+    for (let i = 0; i < 5_000; i += 1) limiter.check(`addr-${i}`);
+
+    expect(limiter.size()).toBeLessThanOrEqual(100);
+  });
+
+  it('still limits correctly for a key that survives', () => {
+    const clock = fakeClock();
+    const limiter = createRateLimiter({ limit: 2, windowMs: 60_000, maxKeys: 50, now: clock.now });
+
+    limiter.check('steady');
+    limiter.check('steady');
+    expect(limiter.check('steady').allowed).toBe(false);
+  });
+});

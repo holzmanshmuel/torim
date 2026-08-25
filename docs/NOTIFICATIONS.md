@@ -360,20 +360,43 @@ Registration has to happen once, at startup, before anything resolves a transpor
 Next.js that is `instrumentation.ts` at the root of `src/`, whose `register()` runs once
 per server instance and must finish before the server takes requests.
 
-**`src/instrumentation.ts`**
+**`src/instrumentation.ts` already exists in this repo.** It is Torim's startup-check
+file — read it before you edit it. As shipped it registers no transport of its own; what
+it does is validate the transport configuration at boot:
+
+- it calls `resolveTransport()`, which **throws** on an unrecognised `TORIM_TRANSPORT`,
+  and deliberately does not catch it;
+- it then refuses to start if `TORIM_TRANSPORT=smtp` while `SMTP_URL` is empty.
+
+That file is what makes "an unrecognised value fails loudly" true. Without it the throw
+would happen far later, inside `configuredChannels()` in `src/lib/notify/hooks.ts`, which
+catches it and queues nothing — silently, in the middle of a customer's booking, which is
+precisely the failure the loudness is meant to prevent.
+
+Your adapter goes into the same `register()`, at the placeholder comment, **before**
+anything resolves a transport — so above the `resolveTransport()` call, or the boot check
+will reject your own transport id as unknown:
 
 ```ts
-export async function register() {
-  // `register` runs in every runtime. A transport that uses Node APIs — or that you
-  // simply do not want loaded twice — belongs behind this check.
+export async function register(): Promise<void> {
+  // Only the Node.js runtime; the edge runtime has neither the env nor the transports.
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  // ── your adapter, registered before anything resolves one ──
   const { registerTransport } = await import('@/lib/notify/registry');
   const { httpTransport } = await import('@/lib/notify/transports/http');
-
   registerTransport(httpTransport);
+
+  // ── then the existing checks, unchanged ──
+  const { resolveTransport } = await import('@/lib/notify/registry');
+  const transport = resolveTransport();
+  // ...
 }
 ```
+
+The dynamic `import()` is not decoration: `register()` runs in every runtime, and a
+transport that touches Node APIs must not be pulled into the edge bundle. That is also
+why the `NEXT_RUNTIME` guard comes first.
 
 Then select it, in your deployment's own environment:
 
@@ -399,7 +422,13 @@ none of it is worse than one that refuses to start, because nobody finds out unt
 customer says they never heard anything.
 
 `availableTransportIds()` returns what is registered, which is what that error message
-lists.
+lists. Note that it lists what is registered **at the moment it is called** — if your
+`registerTransport()` call ends up after the `resolveTransport()` check, your transport
+will not be in that list and the error message will not mention it.
+
+`src/lib/notify/transports/http.ts` is the worked example above; it is **not** in this
+repo, because Torim ships with no messaging provider. `src/lib/notify/transports/smtp.ts`
+and `none.ts` are the two that are.
 
 ---
 
@@ -535,6 +564,9 @@ time beside it.
 - [ ] A channel you cannot serve returns `skipped` naming the channel.
 - [ ] Network calls have a timeout.
 - [ ] Error strings say what went wrong; they are all anyone will have later.
-- [ ] `registerTransport()` is called from `register()` in `src/instrumentation.ts`.
+- [ ] `registerTransport()` is called from the existing `register()` in
+      `src/instrumentation.ts`, **above** that file's `resolveTransport()` boot check —
+      below it, the check rejects your own transport id as unknown and the app refuses
+      to start.
 - [ ] The deployment's `TORIM_TRANSPORT` names your `id`, and the provider's own
       variables are documented in your fork's `.env.example`.

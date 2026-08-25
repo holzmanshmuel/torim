@@ -27,6 +27,8 @@ export type PublicBusiness = {
   askCustomerEmail: boolean;
   /** Minutes before an appointment a reminder is due. Null means this business wants none. */
   reminderLeadMin: number | null;
+  /** How many live future bookings one customer may hold at once. */
+  maxFutureBookingsPerCustomer: number;
 };
 
 type Row = {
@@ -46,12 +48,13 @@ type Row = {
   owner_whatsapp_phone: string | null;
   ask_customer_email: boolean;
   reminder_lead_min: number | null;
+  max_future_bookings_per_customer: number;
 };
 
 const COLUMNS = `id, slug, name, name_he, timezone, default_locale, currency, default_calling_code,
                  slot_granularity_min, min_notice_min, max_advance_days,
                  cancellation_window_min, confirm_new_customers, owner_whatsapp_phone,
-                 ask_customer_email, reminder_lead_min`;
+                 ask_customer_email, reminder_lead_min, max_future_bookings_per_customer`;
 
 function toBusiness(row: Row): PublicBusiness {
   return {
@@ -71,6 +74,7 @@ function toBusiness(row: Row): PublicBusiness {
     ownerWhatsappPhone: row.owner_whatsapp_phone,
     askCustomerEmail: row.ask_customer_email,
     reminderLeadMin: row.reminder_lead_min,
+    maxFutureBookingsPerCustomer: row.max_future_bookings_per_customer,
   };
 }
 

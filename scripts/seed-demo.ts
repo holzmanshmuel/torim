@@ -27,7 +27,7 @@ import { config as loadEnv } from 'dotenv';
 loadEnv({ path: '.env.local', quiet: true });
 loadEnv({ quiet: true });
 
-import { closePool, query, systemQueryOne } from '../src/lib/db';
+import { closePool, query, systemQuery, systemQueryOne } from '../src/lib/db';
 import { runWithTenant } from '../src/lib/tenant';
 
 const SLUG = 'demo';
@@ -150,6 +150,39 @@ async function main(): Promise<void> {
     );
     if (!business) throw new Error('Business upsert returned no row.');
     const businessId = business.id;
+
+    // Optional: make the demo business reachable from /admin.
+    //
+    // Without this the seed creates a business nobody owns — /b/demo works, but signing
+    // in lands on /onboarding and creates a *second*, empty business, which is a
+    // confusing first run.
+    //
+    // This ATTACHES an existing signed-in user; it does not invent one. Users are keyed
+    // on their Google subject id, never on email, so a row minted here with a made-up
+    // subject would never match a real sign-in — the membership would look correct in
+    // the database and do nothing. Sign in once first, then run the seed.
+    const ownerEmail = process.env.SEED_OWNER_EMAIL?.trim().toLowerCase();
+    if (ownerEmail) {
+      const owner = await systemQueryOne<{ id: string }>(
+        'SELECT id FROM torim.users WHERE lower(email) = $1',
+        [ownerEmail],
+      );
+
+      if (owner) {
+        await systemQuery(
+          `INSERT INTO torim.memberships (user_id, business_id, role) VALUES ($1, $2, 'owner')
+           ON CONFLICT (user_id, business_id) DO UPDATE SET role = 'owner'`,
+          [owner.id, businessId],
+        );
+        console.log(`  owner:         ${ownerEmail} — you can now open /admin`);
+      } else {
+        console.log(
+          `  owner:         no account yet for ${ownerEmail}.\n` +
+            '                 Sign in at /login once (that creates it), then re-run this seed\n' +
+            '                 with the same SEED_OWNER_EMAIL to attach it to the demo business.',
+        );
+      }
+    }
 
     const counts = await runWithTenant(businessId, async () => {
       // Idempotent-by-wipe: clear this business's own rows before re-inserting, in FK

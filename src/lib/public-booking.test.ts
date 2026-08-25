@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   CustomerBlockedError,
   SlotNotAvailableError,
+  TooManyBookingsError,
   bookPublicly,
 } from './public-booking';
 import {
@@ -505,7 +506,12 @@ describe('customer email', () => {
     expect(rows[0]!.email).toBeNull();
   });
 
-  it('fills in a missing address for a customer who already exists', async () => {
+  /**
+   * Superseded by the red-team finding below: this used to fill an empty address, on the
+   * reasoning that a blank is not a replacement. The blank is precisely what an attacker
+   * claims. Nothing on an existing customer is written from the public form.
+   */
+  it('does not add an address to a customer who already exists', async () => {
     const first = await runWithTenant(businessId, () =>
       bookPublicly({
         businessId,
@@ -534,7 +540,7 @@ describe('customer email', () => {
         first.customerId,
       ]),
     );
-    expect(rows[0]!.email).toBe('later@example.invalid');
+    expect(rows[0]!.email).toBeNull();
   });
 
   /**
@@ -589,5 +595,170 @@ describe('customer email', () => {
         }),
       ),
     ).rejects.toThrow(/email/i);
+  });
+});
+
+/**
+ * Two holes a red-team walk-through opened in this file, both in code written the same
+ * day, neither caught by review.
+ */
+describe('abuse limits on the public surface', () => {
+  /**
+   * "Fills a blank but never replaces one" was the rule — and the blank is exactly what
+   * an attacker wants. A customer the owner created by hand (a walk-in, a phone booking)
+   * has no email, so the slot is unclaimed. One booking with the victim's phone and the
+   * attacker's address, and every future confirmation and reminder for that customer is
+   * delivered to the attacker — each carrying a capability URL that cancels and moves
+   * her real appointments.
+   *
+   * An address is now only ever set when the customer row is created.
+   */
+  it('cannot claim the empty email slot of a customer someone else created', async () => {
+    const walkIn = await runWithTenant(businessId, async () => {
+      const rows = await query<{ id: string }>(
+        `INSERT INTO torim.customers (name, phone_e164) VALUES ('Walk-in Victim', $1) RETURNING id`,
+        ['+972509000001'],
+      );
+      return rows[0]!.id;
+    });
+
+    await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-08-17'),
+        customerName: 'Walk-in Victim',
+        customerPhone: '0509000001',
+        customerEmail: 'attacker@example.invalid',
+        now: EARLY,
+      }),
+    );
+
+    const rows = await runWithTenant(businessId, () =>
+      query<{ email: string | null }>('SELECT email FROM torim.customers WHERE id = $1', [walkIn]),
+    );
+    expect(rows[0]!.email).toBeNull();
+  });
+
+  /**
+   * Rate limiting bounds how fast an attacker works. Nothing bounded how much they could
+   * hold: incrementing the phone number per request gave a fresh bucket every time, so a
+   * whole booking horizon could be filled one request at a time.
+   */
+  it('refuses once a customer already holds the business’s limit of future bookings', async () => {
+    await runWithTenant(businessId, () =>
+      query('UPDATE torim.businesses SET max_future_bookings_per_customer = 2 WHERE id = $1', [
+        businessId,
+      ]),
+    );
+
+    const phone = '0509000002';
+    const day = '2026-08-24';
+    const book = (minutes: number) =>
+      runWithTenant(businessId, () =>
+        bookPublicly({
+          businessId,
+          serviceId,
+          startsAt: at(minutes, day),
+          customerName: 'Serial Booker',
+          customerPhone: phone,
+          now: EARLY,
+        }),
+      );
+
+    await book(9 * 60);
+    await book(10 * 60);
+    await expect(book(11 * 60)).rejects.toBeInstanceOf(TooManyBookingsError);
+
+    await runWithTenant(businessId, () =>
+      query('UPDATE torim.businesses SET max_future_bookings_per_customer = 5 WHERE id = $1', [
+        businessId,
+      ]),
+    );
+  });
+
+  it('does not count cancelled bookings against the cap', async () => {
+    await runWithTenant(businessId, () =>
+      query('UPDATE torim.businesses SET max_future_bookings_per_customer = 1 WHERE id = $1', [
+        businessId,
+      ]),
+    );
+
+    const phone = '0509000003';
+    const first = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-08-31'),
+        customerName: 'Rebooker',
+        customerPhone: phone,
+        now: EARLY,
+      }),
+    );
+
+    await runWithTenant(businessId, () =>
+      query(`UPDATE torim.bookings SET status = 'cancelled' WHERE id = $1`, [first.booking.id]),
+    );
+
+    // Having cancelled, they may book again.
+    const second = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(10 * 60, '2026-08-31'),
+        customerName: 'Rebooker',
+        customerPhone: phone,
+        now: EARLY,
+      }),
+    );
+    expect(second.booking.id).toBeTruthy();
+
+    await runWithTenant(businessId, () =>
+      query('UPDATE torim.businesses SET max_future_bookings_per_customer = 5 WHERE id = $1', [
+        businessId,
+      ]),
+    );
+  });
+});
+
+describe('names made only of invisible characters', () => {
+  /**
+   * JavaScript's `\s` does not match U+200B, and Postgres `btrim` strips spaces only, so
+   * a name of three zero-width spaces passed validation, passed `cleanText`, and passed
+   * the `length(btrim(name)) > 0` CHECK — producing a customer row that renders as blank
+   * everywhere in the owner's admin.
+   */
+  it('are rejected rather than stored as a blank-looking customer', async () => {
+    await expect(
+      runWithTenant(businessId, () =>
+        bookPublicly({
+          businessId,
+          serviceId,
+          startsAt: at(9 * 60, '2026-09-07'),
+          customerName: '​​​',
+          customerPhone: '0509100001',
+          now: EARLY,
+        }),
+      ),
+    ).rejects.toThrow(/name/i);
+  });
+
+  it('accepts a name that merely contains an invisible character', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(10 * 60, '2026-09-07'),
+        customerName: 'Ada​Lovelace',
+        customerPhone: '0509100002',
+        now: EARLY,
+      }),
+    );
+    const rows = await runWithTenant(businessId, () =>
+      query<{ name: string }>('SELECT name FROM torim.customers WHERE id = $1', [
+        result.customerId,
+      ]),
+    );
+    expect(rows[0]!.name).toBe('AdaLovelace');
   });
 });
