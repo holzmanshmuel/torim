@@ -89,13 +89,25 @@ const en = {
   'booking.details.phoneInvalid': 'That does not look like a number we can reach you on.',
   'booking.details.phoneNeedsCountry':
     'Please include your country code, for example +972 50 123 4567.',
+  'booking.details.optional': 'Optional',
+  // Shown only when the business turned `ask_customer_email` on. The label says
+  // optional and the copy stops there: nothing in this layer knows whether the
+  // deployment has a messaging transport, so nothing here may promise a confirmation
+  // or a reminder. A customer told to expect one that never arrives is the failure.
+  'booking.details.email': 'Email address',
+  'booking.details.emailPlaceholder': 'dana@example.com',
+  'booking.details.emailInvalid': 'That does not look like an email address.',
   'booking.details.note': 'Anything they should know?',
   'booking.details.noteOptional': 'Optional',
   'booking.details.notePlaceholder': 'Allergies, preferences, anything useful…',
   'booking.details.noteTooLong': 'Please keep this shorter.',
   'booking.details.submit': 'Confirm booking',
+  // Two variants, because the notice must name exactly the fields the form has — no
+  // more and no fewer. Which one is rendered follows `asksEmail`.
   'booking.details.privacy':
     'We collect your name and phone number only to make and manage this appointment.',
+  'booking.details.privacyWithEmail':
+    'We collect your name, phone number and email address only to make and manage this appointment.',
   'booking.details.privacyLink': 'How your details are used',
 
   // ── Summary ───────────────────────────────────────────────────────────────────
@@ -249,12 +261,18 @@ const he = {
   'booking.details.phoneHintInternational': 'יש לכלול קידומת מדינה, למשל \u200E+972 50 123 4567.',
   'booking.details.phoneInvalid': 'זה לא נראה כמו מספר שאפשר להשיג אותך בו.',
   'booking.details.phoneNeedsCountry': 'יש לכלול קידומת מדינה, למשל \u200E+972 50 123 4567.',
+  'booking.details.optional': 'לא חובה',
+  'booking.details.email': 'כתובת אימייל',
+  'booking.details.emailPlaceholder': 'dana@example.com',
+  'booking.details.emailInvalid': 'זה לא נראה כמו כתובת אימייל.',
   'booking.details.note': 'משהו שכדאי שידעו?',
   'booking.details.noteOptional': 'לא חובה',
   'booking.details.notePlaceholder': 'אלרגיות, העדפות, כל דבר שיעזור…',
   'booking.details.noteTooLong': 'צריך לקצר קצת.',
   'booking.details.submit': 'אישור התור',
   'booking.details.privacy': 'אנחנו אוספים שם וטלפון רק כדי לקבוע ולנהל את התור הזה.',
+  'booking.details.privacyWithEmail':
+    'אנחנו אוספים שם, טלפון וכתובת אימייל רק כדי לקבוע ולנהל את התור הזה.',
   'booking.details.privacyLink': 'איך משתמשים בפרטים שלך',
 
   // ── Summary ───────────────────────────────────────────────────────────────────

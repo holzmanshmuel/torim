@@ -6,6 +6,7 @@ import { getT } from '@/lib/i18n';
 import { saveSettingsAction } from '../_actions/settings';
 import { adminDictionary } from '../dictionary';
 import type { SettingsFormInput } from '../types';
+import { REMINDER_LEAD_MAX_MIN } from '../validation';
 import { Banner } from './Banner';
 import { useAdminAction } from './useAdminAction';
 
@@ -222,6 +223,68 @@ export function SettingsForm({ initial }: { initial: SettingsFormInput }) {
             <span className="block text-sm text-muted">{t('set.confirmNewHint')}</span>
           </span>
         </label>
+      </section>
+
+      {/*
+        Customer messaging.
+
+        Deliberately says nothing about anything being delivered. Torim ships with no
+        messaging provider and no account with anybody, so whether a queued reminder
+        actually reaches a customer depends on a transport this installation was
+        configured with — which this screen cannot see. Promising delivery here is how
+        an owner ends up believing her customers were reminded when nobody was.
+      */}
+      <section className="flex flex-col gap-4 border-t border-line pt-5">
+        <h2 className="font-display text-lg font-semibold text-ink">{t('set.messaging')}</h2>
+        <p className="text-sm text-muted">{t('set.messagingIntro')}</p>
+
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={form.askCustomerEmail}
+            onChange={(event) => set('askCustomerEmail', event.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <span>
+            <span className="block text-sm text-ink">{t('set.askEmail')}</span>
+            <span className="block text-sm text-muted">{t('set.askEmailHint')}</span>
+          </span>
+        </label>
+
+        {/*
+          The switch IS the "no reminders at all" answer. `reminder_lead_min` is nullable
+          precisely so NULL and 0 can differ — 0 means "at the appointment time", which is
+          a real choice — and a lone empty number box cannot express that difference: it
+          reads as a field somebody forgot to fill in.
+        */}
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={form.remindersEnabled}
+            onChange={(event) => set('remindersEnabled', event.target.checked)}
+            className="mt-0.5 h-5 w-5 shrink-0"
+          />
+          <span>
+            <span className="block text-sm text-ink">{t('set.reminders')}</span>
+            <span className="block text-sm text-muted">{t('set.remindersHint')}</span>
+          </span>
+        </label>
+
+        {form.remindersEnabled ? (
+          <Field
+            label={t('set.reminderLead')}
+            hint={t('set.reminderLeadHint')}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={REMINDER_LEAD_MAX_MIN}
+            value={form.reminderLeadMin}
+            onChange={(event) => set('reminderLeadMin', event.target.value)}
+            error={save.fieldError('reminderLeadMin')}
+          />
+        ) : (
+          <p className="text-sm text-muted">{t('set.remindersOff')}</p>
+        )}
       </section>
 
       <div>

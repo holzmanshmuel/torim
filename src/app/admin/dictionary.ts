@@ -411,6 +411,25 @@ const en = {
     'Heads up: customers can book with less notice than your cancellation cut-off, so someone booking at short notice will not be able to cancel online — they will call you instead.',
   'set.error.cancel_range': 'The cancellation cut-off must be 0 minutes or more.',
 
+  // ── settings: customer messaging ───────────────────────────────────────────
+  // Nothing here promises delivery. Torim ships with no messaging provider, so
+  // whether a queued reminder reaches anyone depends on a transport this
+  // installation was configured with, which this screen cannot see.
+  'set.messaging': 'Customer messaging',
+  'set.messagingIntro':
+    'Torim never messages your customers by itself. The WhatsApp links you tap always work. Anything automatic depends on whoever set this up having connected a messaging service — if you’re not sure, ask them.',
+  'set.askEmail': 'Ask customers for an email address',
+  'set.askEmailHint':
+    'Adds an optional email box to your booking page. Off by default — leave it off unless you will actually use the address.',
+  'set.reminders': 'Schedule a reminder before each appointment',
+  'set.remindersHint':
+    'A reminder is prepared for every new booking, and dropped again if the appointment is cancelled or moved.',
+  'set.remindersOff': 'Reminders are off — nothing is prepared for any booking.',
+  'set.reminderLead': 'How far ahead (minutes)',
+  'set.reminderLeadHint':
+    '1440 is a day before, 120 is two hours before. 0 means at the appointment time itself.',
+  'set.error.reminder_range': 'Pick between 0 minutes and 14 days ahead — or switch reminders off.',
+
   // ── WhatsApp prefills (composed in the BUSINESS's language) ────────────────
   'wa.about': 'Hi {name}, this is {business} about your appointment on {when}.',
   'wa.cancelled': 'Hi {name}, this is {business}. Your appointment on {when} has been cancelled.',
@@ -823,6 +842,21 @@ const he = {
   'set.error.notice_range': 'ההתראה המינימלית צריכה להיות 0 דקות ומעלה.',
   'set.error.advance_range': 'טווח הקביעה צריך להיות בין 1 ל-730 ימים.',
   'set.error.cancel_range': 'סף הביטול צריך להיות 0 דקות ומעלה.',
+
+  // ── settings: customer messaging ───────────────────────────────────────────
+  'set.messaging': 'הודעות ללקוחות',
+  'set.messagingIntro':
+    'תורים אף פעם לא שולח הודעות ללקוחות בעצמו. הקישורים לוואטסאפ שאת לוחצת תמיד עובדים. כל דבר אוטומטי תלוי בכך שמי שהתקין את המערכת חיבר שירות הודעות — אם את לא בטוחה, כדאי לשאול.',
+  'set.askEmail': 'לבקש מלקוחות כתובת אימייל',
+  'set.askEmailHint':
+    'מוסיף שדה אימייל לא חובה לדף קביעת התורים. כבוי כברירת מחדל — כדאי להשאיר כבוי אלא אם באמת תשתמשי בכתובת.',
+  'set.reminders': 'לתזמן תזכורת לפני כל תור',
+  'set.remindersHint':
+    'לכל תור חדש מוכנה תזכורת, והיא נמחקת אם התור בוטל או הוזז.',
+  'set.remindersOff': 'תזכורות כבויות — לא מוכנה תזכורת לאף תור.',
+  'set.reminderLead': 'כמה זמן מראש (דקות)',
+  'set.reminderLeadHint': '1440 זה יום לפני, 120 זה שעתיים לפני. 0 זה בשעת התור עצמה.',
+  'set.error.reminder_range': 'צריך לבחור בין 0 דקות ל-14 ימים מראש — או לכבות תזכורות.',
 
   // ── WhatsApp prefills (composed in the BUSINESS's language) ────────────────
   'wa.about': 'היי {name}, כאן {business} בנוגע לתור שלך ב{when}.',

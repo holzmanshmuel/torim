@@ -21,12 +21,17 @@ APIs may still change. Don't run it for a real business yet.
   (how far ahead customers can book).
 - Customer booking with phone-first identity — no account, no password.
 - An admin day/week calendar with manual entry for phone or walk-in bookings.
-- Owner-initiated messaging: a WhatsApp deep link plus optional email notifications.
+- Owner-initiated messaging: a `wa.me` link the owner taps, which needs no account
+  and no provider.
+- Optional automated notifications through a transport the deployment configures
+  itself. Nothing is configured out of the box, and nothing is sent by default.
 - Bilingual English/Hebrew, including RTL layout.
 
 **Explicitly not in v1:** payments and deposits, multi-staff scheduling, waitlists,
-calendar sync (Google/Outlook), or automated SMS/WhatsApp sending. Owner-initiated
-WhatsApp is a `wa.me` link the owner taps, not an API integration.
+or calendar sync (Google/Outlook). Torim also ships with **no messaging provider and
+no account with anybody** — a fresh clone sends nothing, and no phone number, endpoint
+or key for any provider exists in this repository. Automated sending is opt-in per
+deployment; see [Notifications](#notifications).
 
 ## Requirements
 
@@ -78,6 +83,29 @@ Open http://localhost:3000.
 > business's bookings. `npm run db:grant` creates the correct role; `npm run
 > db:check-role` asserts a given `DATABASE_URL` is safe before you trust it. CI runs
 > the same check before every test run.
+
+## Notifications
+
+**Nothing is sent by default.** Torim ships with no messaging provider and no account
+with anybody, so a fresh clone messages nobody.
+
+- **Owner-initiated WhatsApp needs no setup.** Torim composes the message and hands the
+  owner a `wa.me` link; tapping it opens WhatsApp on her own device, signed in as her,
+  with the text prefilled — she presses send herself. A `wa.me` link carries no sender
+  identity, so no number of anyone's is stored in the app or in this repository.
+- **Automated messages are opt-in, per deployment.** Set `TORIM_TRANSPORT` (default
+  `none`; `smtp` is the other built-in) and supply that transport's own credentials in
+  your own environment. An unrecognised value fails loudly rather than quietly sending
+  nothing.
+- **A fork writes an adapter for whatever it already uses.** The `MessageTransport`
+  contract is three members, and there is a complete worked example for a generic HTTP
+  messaging API.
+- **Or drain the queue from outside**, over the bearer-token ops endpoints, with n8n or
+  any cron job.
+
+See [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md) for the message flow, the contract
+field by field, the worked example, and what v1 deliberately does not do (no retries,
+backoff, quiet hours, debouncing or rate caps).
 
 ## Architecture, briefly
 

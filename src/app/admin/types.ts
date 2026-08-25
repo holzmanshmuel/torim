@@ -260,6 +260,20 @@ export type SettingsFormInput = {
   maxAdvanceDays: string;
   cancellationWindowMin: string;
   confirmNewCustomers: boolean;
+  /**
+   * Reminders are two fields for one nullable column, deliberately.
+   *
+   * `businesses.reminder_lead_min` is NULL for "no reminders at all" and 0 for "at the
+   * appointment time" — genuinely different answers. A single number input cannot say
+   * both: an empty box reads as a field somebody forgot to fill in, not as a choice. So
+   * the switch carries the "none" answer and the number carries the lead time, and the
+   * action collapses them back to `number | null`.
+   */
+  remindersEnabled: boolean;
+  /** Minutes before the appointment. Ignored entirely when `remindersEnabled` is false. */
+  reminderLeadMin: string;
+  /** Off by default. When off, the booking form never shows an email field at all. */
+  askCustomerEmail: boolean;
 };
 
 export type OnboardingFormInput = {

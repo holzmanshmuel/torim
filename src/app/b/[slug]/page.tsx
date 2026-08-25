@@ -74,6 +74,16 @@ export default async function BookingPage({ params }: Params) {
   const business = await resolveBusiness(params);
   if (!business) notFound();
 
+  // Whether the form asks for an email at all.
+  //
+  // Its own prop rather than a field on `BusinessDto`, because that DTO is shared with
+  // the customer's /manage page, which has no details form and never will. The Server
+  // Action re-reads the same setting for itself — it is reachable by direct POST, so
+  // this value being in the payload proves nothing.
+  // The flag rides on the business we already resolved from the slug server-side,
+  // so a Server Action still never takes the client's word for what is collected.
+  const asksEmail = business.askCustomerEmail;
+
   const services: ServiceDto[] = await runWithTenant(business.id, async () => {
     const rows = await listActiveServices();
     return rows.map((service) => ({
@@ -109,6 +119,7 @@ export default async function BookingPage({ params }: Params) {
       <BookingFlow
         lang={lang}
         business={toBusinessDto(business)}
+        asksEmail={asksEmail}
         businessName={businessName}
         services={services}
         today={today}

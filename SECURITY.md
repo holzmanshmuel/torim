@@ -46,6 +46,31 @@ by PostgreSQL itself, not by application code:
   one operation is confined to a single, narrowly-scoped function, executable only
   by the app role, that creates the business row and its owner membership together.
 
+## The ops endpoints and outbound messaging
+
+- **The ops endpoints are gated by a bearer token, `OPS_TOKEN`.** It is a
+  server-to-server secret for an external system draining the notification queue — n8n,
+  a cron job, a worker. It is never rendered, never sent to a browser, and never
+  user-facing: nothing a customer or a signed-in owner touches reads it. Leave it unset
+  and the endpoints stay closed, which is the default; the product works without them.
+  Treat it like any other server credential — rotate it if it leaks, and do not reuse
+  `SESSION_PASSWORD` for it.
+- **Torim ships with no messaging provider and no account with anybody.** A fresh clone
+  sends nothing. There is no phone number, endpoint or API key for any provider in this
+  repository.
+- **Customer contact details leave the system only through a transport the deployment
+  configured itself.** With `TORIM_TRANSPORT` unset or `none` — the default — no
+  customer name, phone number or email address is transmitted anywhere by the server at
+  all. Choosing a transport is the act that starts sending personal data to a third
+  party, under that deployment's own agreement with them, and it is a deliberate,
+  explicit configuration change. See [`docs/NOTIFICATIONS.md`](./docs/NOTIFICATIONS.md).
+- **The owner-initiated WhatsApp path sends nothing from the server.** A `wa.me` link is
+  composed in the browser and opens WhatsApp on the owner's own device, under her own
+  account; the message is hers to send. The link carries no sender identity, so no
+  number belonging to the business or to Torim is embedded anywhere.
+- **Anything a transport carries should be treated as sensitive**, particularly a
+  booking-management link — see the capability-URL note below.
+
 ## Known limitations
 
 - **No customer-side identity verification in v1.** A customer booking is

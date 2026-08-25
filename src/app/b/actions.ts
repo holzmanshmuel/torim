@@ -49,6 +49,7 @@ import type { ActionResult, AvailabilityPayload, ConfirmationDto } from './lib/t
 import {
   MAX_NAME_LENGTH,
   parseDateRange,
+  parseEmail,
   parseInstant,
   parseName,
   parseNote,
@@ -72,6 +73,11 @@ export type BookingSubmission = {
   startsAt: string;
   name: string;
   phone: string;
+  /**
+   * Optional, and only meaningful when the business turned `ask_customer_email` on.
+   * Ignored outright otherwise — see `submitBooking`.
+   */
+  email?: string;
   note?: string;
 };
 
@@ -207,6 +213,17 @@ export async function submitBooking(
   const phoneGate = bookingPhoneLimiter.check(`book-phone:${phone}`);
   if (!phoneGate.allowed) return rateLimitedError(lang, phoneGate.retryAfterMs);
 
+  // Whether an address may be collected at all is the BUSINESS's setting, re-read here
+  // rather than inferred from the payload. This action is a POST endpoint like any
+  // other, so an address arriving for a business that never asked its customers for one
+  // is discarded rather than trusted — collecting personal data the owner did not opt
+  // into is not something a crafted request gets to do.
+  // The flag rides on the business we already resolved from the slug server-side,
+  // so a Server Action still never takes the client's word for what is collected.
+  const asksEmail = business.askCustomerEmail;
+  const email = parseEmail(asksEmail ? raw.email : undefined);
+  if (!email.ok) return fieldError(lang, 'email', 'booking.details.emailInvalid');
+
   try {
     const result = await runWithTenant(business.id, async () => {
       const service = await getService(serviceId);
@@ -216,6 +233,10 @@ export async function submitBooking(
         businessId: business.id,
         serviceId,
         startsAt,
+        // Undefined unless this business asked for one — parseEmail was given undefined
+        // otherwise, so a payload carrying an address for a business that does not
+        // collect them cannot smuggle it in.
+        customerEmail: email.email,
         customerName: name,
         customerPhone: phone,
         note: note.note,

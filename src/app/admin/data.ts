@@ -490,7 +490,43 @@ export type BusinessSettingsInput = {
   maxAdvanceDays: number;
   cancellationWindowMin: number;
   confirmNewCustomers: boolean;
+  /** NULL means no reminders at all — not the same as 0, "at the appointment time". */
+  reminderLeadMin: number | null;
+  askCustomerEmail: boolean;
 };
+
+/**
+ * The two columns the booking form and the notification queue both care about.
+ *
+ * Read here rather than through `@/lib/businesses`, whose `PublicBusiness` is the shape
+ * an unauthenticated booking page is allowed to resolve from a slug. These are settings
+ * the owner's own screen reads about her own business, so they take their target from
+ * the tenant the auth guard already proved — same rule as every other write in this file.
+ */
+export type MessagingSettings = {
+  askCustomerEmail: boolean;
+  reminderLeadMin: number | null;
+};
+
+export async function getMessagingSettings(): Promise<MessagingSettings> {
+  const businessId = requireBusinessId();
+
+  const rows = await systemQuery<{
+    ask_customer_email: boolean;
+    reminder_lead_min: number | null;
+  }>(
+    `SELECT ask_customer_email, reminder_lead_min FROM torim.businesses WHERE id = $1`,
+    [businessId],
+  );
+
+  const row = rows[0];
+  // Defaults that match the schema's, so a business row that vanished mid-request
+  // renders a form that asks for nothing and sends nothing rather than one that lies.
+  return {
+    askCustomerEmail: row?.ask_customer_email ?? false,
+    reminderLeadMin: row?.reminder_lead_min ?? null,
+  };
+}
 
 /**
  * Update the signed-in owner's business.
@@ -508,7 +544,8 @@ export async function updateBusinessSettings(input: BusinessSettingsInput): Prom
         SET name = $2, name_he = $3, slug = $4, timezone = $5, currency = $6,
             default_locale = $7, default_calling_code = $8, owner_whatsapp_phone = $9,
             slot_granularity_min = $10, min_notice_min = $11, max_advance_days = $12,
-            cancellation_window_min = $13, confirm_new_customers = $14, updated_at = now()
+            cancellation_window_min = $13, confirm_new_customers = $14,
+            reminder_lead_min = $15, ask_customer_email = $16, updated_at = now()
       WHERE id = $1`,
     [
       businessId,
@@ -525,6 +562,8 @@ export async function updateBusinessSettings(input: BusinessSettingsInput): Prom
       input.maxAdvanceDays,
       input.cancellationWindowMin,
       input.confirmNewCustomers,
+      input.reminderLeadMin,
+      input.askCustomerEmail,
     ],
   );
 }

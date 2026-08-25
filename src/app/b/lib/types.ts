@@ -78,7 +78,7 @@ export type ActionError = {
   /** Localised and ready to display. */
   message: string;
   /** Set when the failure belongs beside one input rather than above the form. */
-  field?: 'name' | 'phone' | 'note';
+  field?: 'name' | 'phone' | 'note' | 'email';
 };
 
 export type ActionErrorCode =

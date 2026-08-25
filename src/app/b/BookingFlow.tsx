@@ -37,6 +37,12 @@ import type { BusinessDto, ConfirmationDto, ServiceDto } from './lib/types';
 export type BookingFlowProps = {
   lang: Lang;
   business: BusinessDto;
+  /**
+   * Whether this business asks its customers for an email address — `ask_customer_email`,
+   * off by default. When false the details step has no email field at all, and the
+   * collection notice beside the submit button names name and phone only.
+   */
+  asksEmail: boolean;
   /** Already resolved to the active language by the server. */
   businessName: string;
   services: ServiceDto[];
@@ -51,6 +57,7 @@ const ORDER: Step[] = ['service', 'time', 'details'];
 export function BookingFlow({
   lang,
   business,
+  asksEmail,
   businessName,
   services,
   today,
@@ -63,12 +70,14 @@ export function BookingFlow({
   const [slotIso, setSlotIso] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [note, setNote] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{
     name: string | null;
     phone: string | null;
+    email: string | null;
     note: string | null;
-  }>({ name: null, phone: null, note: null });
+  }>({ name: null, phone: null, email: null, note: null });
   const [timeNotice, setTimeNotice] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationDto | null>(null);
 
@@ -99,7 +108,7 @@ export function BookingFlow({
   } = useAsyncAction(async () => {
     if (!serviceId || !slotIso) return;
 
-    setFieldErrors({ name: null, phone: null, note: null });
+    setFieldErrors({ name: null, phone: null, email: null, note: null });
 
     const result = await submitBooking({
       slug: business.slug,
@@ -107,6 +116,9 @@ export function BookingFlow({
       startsAt: slotIso,
       name,
       phone,
+      // Never sent when the business did not ask for it, so a stale tab whose business
+      // has since turned the setting off cannot smuggle one in.
+      email: asksEmail && email.trim() !== '' ? email : undefined,
       note: note.trim() === '' ? undefined : note,
     });
 
@@ -156,8 +168,9 @@ export function BookingFlow({
     setSlotIso(null);
     setName('');
     setPhone('');
+    setEmail('');
     setNote('');
-    setFieldErrors({ name: null, phone: null, note: null });
+    setFieldErrors({ name: null, phone: null, email: null, note: null });
     setTimeNotice(null);
     setConfirmation(null);
     resetSubmit();
@@ -260,11 +273,14 @@ export function BookingFlow({
           <DetailsStep
             t={t}
             hasDefaultCallingCode={business.hasDefaultCallingCode}
+            asksEmail={asksEmail}
             name={name}
             phone={phone}
+            email={email}
             note={note}
             nameError={fieldErrors.name}
             phoneError={fieldErrors.phone}
+            emailError={fieldErrors.email}
             noteError={fieldErrors.note}
             onNameChange={(value) => {
               setName(value);
@@ -273,6 +289,10 @@ export function BookingFlow({
             onPhoneChange={(value) => {
               setPhone(value);
               setFieldErrors((prev) => ({ ...prev, phone: null }));
+            }}
+            onEmailChange={(value) => {
+              setEmail(value);
+              setFieldErrors((prev) => ({ ...prev, email: null }));
             }}
             onNoteChange={(value) => {
               setNote(value);
@@ -315,7 +335,7 @@ export function BookingFlow({
               </p>
             ) : null}
 
-            <CollectionNotice t={t} />
+            <CollectionNotice t={t} asksEmail={asksEmail} />
 
             <Button
               size="lg"

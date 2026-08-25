@@ -61,7 +61,7 @@ const en: Dictionary = {
     'This page explains what information this booking system collects and how it is used.',
   'privacy.collect.title': 'What we collect',
   'privacy.collect.body':
-    'When you book an appointment, we collect your name and phone number, along with the date, time, and service you selected.',
+    'When you book an appointment, we collect the details you enter — your name and phone number, and an email address if this business asks for one — along with the date, time, and service you selected.',
   'privacy.why.title': 'Why we collect it',
   'privacy.why.body':
     'This information is used only to schedule, confirm, and manage your booking, and to contact you about it if needed.',
@@ -131,7 +131,7 @@ const he: Dictionary = {
     'העמוד הזה מסביר אילו פרטים מערכת קביעת התורים אוספת וכיצד הם משמשים.',
   'privacy.collect.title': 'מה אנחנו אוספים',
   'privacy.collect.body':
-    'בעת קביעת תור, אנחנו אוספים את שמך ומספר הטלפון שלך, יחד עם התאריך, השעה והשירות שבחרת.',
+    'בעת קביעת תור, אנחנו אוספים את הפרטים שהזנת — שם ומספר טלפון, וגם כתובת אימייל אם העסק מבקש אותה — יחד עם התאריך, השעה והשירות שבחרת.',
   'privacy.why.title': 'למה אנחנו אוספים את זה',
   'privacy.why.body':
     'המידע הזה משמש רק לתיאום, אישור וניהול התור שלך, וליצירת קשר איתך בנוגע אליו במידת הצורך.',

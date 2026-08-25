@@ -24,6 +24,7 @@ import {
   deleteService,
   deleteWorkingHours,
   getAdminService,
+  getMessagingSettings,
   listAdminServices,
   listClosures,
   listCustomerVisits,
@@ -240,6 +241,8 @@ describe('admin writes cannot reach another business', () => {
         maxAdvanceDays: 30,
         cancellationWindowMin: 120,
         confirmNewCustomers: true,
+        reminderLeadMin: 1440,
+        askCustomerEmail: true,
       }),
     );
 
@@ -249,5 +252,50 @@ describe('admin writes cannot reach another business', () => {
     expect(alphaBusiness!.slotGranularityMin).toBe(30);
     expect(betaBusiness!.name).toBe('Beta');
     expect(betaBusiness!.slotGranularityMin).toBe(15);
+
+    // The messaging columns are on the same row and get the same treatment: written for
+    // the tenant in scope, and left at their defaults for everyone else.
+    expect(await asAlpha(getMessagingSettings)).toEqual({
+      askCustomerEmail: true,
+      reminderLeadMin: 1440,
+    });
+    expect(await asBeta(getMessagingSettings)).toEqual({
+      askCustomerEmail: false,
+      reminderLeadMin: null,
+    });
+  });
+
+  /**
+   * NULL and 0 are different answers, and the round trip has to preserve the difference.
+   *
+   * NULL means this business wants no reminders at all; 0 means "at the appointment
+   * time". `scheduleForBooking` branches on exactly this, so a layer that collapsed one
+   * into the other would either silently stop reminding a business that asked to be
+   * reminded, or start reminding one that asked not to be.
+   */
+  it('keeps "no reminders" (null) distinct from "0 minutes before"', async () => {
+    const settings = {
+      name: 'Beta',
+      nameHe: null,
+      slug: 'scope-beta',
+      timezone: TZ,
+      currency: 'ILS',
+      defaultLocale: 'he' as const,
+      defaultCallingCode: '972',
+      ownerWhatsappPhone: null,
+      slotGranularityMin: 15,
+      minNoticeMin: 60,
+      maxAdvanceDays: 30,
+      cancellationWindowMin: 120,
+      confirmNewCustomers: false,
+      reminderLeadMin: null as number | null,
+      askCustomerEmail: false,
+    };
+
+    await asBeta(() => updateBusinessSettings({ ...settings, reminderLeadMin: 0 }));
+    expect((await asBeta(getMessagingSettings)).reminderLeadMin).toBe(0);
+
+    await asBeta(() => updateBusinessSettings({ ...settings, reminderLeadMin: null }));
+    expect((await asBeta(getMessagingSettings)).reminderLeadMin).toBeNull();
   });
 });

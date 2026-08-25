@@ -41,6 +41,9 @@ export const MAX_RANGE_DAYS = 62;
 export const MAX_NAME_LENGTH = 80;
 export const MAX_NOTE_LENGTH = 280;
 
+/** The longest address SMTP will carry — RFC 5321's path limit. */
+export const MAX_EMAIL_LENGTH = 254;
+
 /** Instants outside this range are not a booking; they are someone probing. */
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
@@ -158,6 +161,39 @@ export function parseNote(value: unknown): { ok: true; note?: string } | { ok: f
   if (trimmed.length === 0) return { ok: true };
   if (trimmed.length > MAX_NOTE_LENGTH) return { ok: false };
   return { ok: true, note: trimmed };
+}
+
+/**
+ * A shape check on an optional email address, not an existence proof.
+ *
+ * Absent, null and empty all mean "no email", because the field is optional and only
+ * appears at all when the business turned `ask_customer_email` on. A malformed one is a
+ * rejection with a message beside the box rather than a silently dropped value: a
+ * customer who typed an address meant it to be used.
+ *
+ * The pattern is deliberately loose — one `@`, something either side, at least one dot
+ * in the domain, no whitespace. Every stricter regex in circulation rejects addresses
+ * that genuinely deliver, and the only real test of an address is sending to it. What
+ * this does catch is the actual failure mode: a phone number or a name typed into the
+ * wrong box.
+ *
+ * Case is preserved. The local part is case-sensitive per RFC 5321, and nothing here
+ * uses the address as an identity key — phone is identity in Torim — so there is no
+ * reason to fold it.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+
+export function parseEmail(value: unknown): { ok: true; email?: string } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true };
+  const raw = asString(value);
+  if (raw === null) return { ok: false };
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { ok: true };
+  if (trimmed.length > MAX_EMAIL_LENGTH) return { ok: false };
+  if (!EMAIL_SHAPE.test(trimmed)) return { ok: false };
+
+  return { ok: true, email: trimmed };
 }
 
 /**

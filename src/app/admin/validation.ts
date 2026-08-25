@@ -83,6 +83,16 @@ export const SLUG_SHAPE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 export const CURRENCY_SHAPE = /^[A-Z]{3}$/;
 export const CALLING_CODE_SHAPE = /^[1-9][0-9]{0,3}$/;
 
+/**
+ * The widest reminder lead time the schema allows — two weeks, matching
+ * `businesses_reminder_lead_range` in `scripts/sql/007_notifications.sql`. Kept beside
+ * the other schema-mirroring constants so the form and the CHECK cannot drift apart.
+ *
+ * Note what this bound does NOT cover: "no reminders at all" is the column being NULL,
+ * not a number in this range. 0 is a real answer — "at the appointment time".
+ */
+export const REMINDER_LEAD_MAX_MIN = 20160;
+
 /** A best-effort slug from a business name, for the onboarding field's initial value. */
 export function slugify(name: string): string {
   return name
@@ -224,6 +234,7 @@ export function dbErrorCode(err: unknown): string | null {
     businesses_min_notice_min_check: 'notice_range',
     businesses_max_advance_days_check: 'advance_range',
     businesses_cancellation_window_min_check: 'cancel_range',
+    businesses_reminder_lead_range: 'reminder_range',
     bookings_service_id_fkey: 'in_use',
     bookings_customer_id_fkey: 'in_use',
   };

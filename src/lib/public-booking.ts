@@ -45,6 +45,12 @@ export type PublicBookingRequest = {
   startsAt: Date;
   customerName: string;
   customerPhone: string;
+  /**
+   * Optional, and only collected when the business turned `ask_customer_email` on —
+   * which it only would having configured a transport that could use one. Phone is the
+   * identity here; this is a contact detail, never a key.
+   */
+  customerEmail?: string;
   note?: string;
   now?: Date;
 };
@@ -60,6 +66,28 @@ export type PublicBookingResult = {
 /** Trim, collapse whitespace, and strip bidi overrides before anything is stored. */
 function cleanText(value: string): string {
   return stripBidiControls(value).replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Deliberately permissive: one @, something either side, no whitespace. Anything
+ * stricter rejects addresses that genuinely work, and the only real proof an address is
+ * deliverable is sending to it.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export class InvalidEmailError extends Error {
+  constructor() {
+    super('That does not look like an email address.');
+    this.name = 'InvalidEmailError';
+  }
+}
+
+function cleanEmail(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  const email = stripBidiControls(value).trim().toLowerCase();
+  if (email.length === 0) return null;
+  if (email.length > 254 || !EMAIL_SHAPE.test(email)) throw new InvalidEmailError();
+  return email;
 }
 
 export async function bookPublicly(
@@ -79,6 +107,7 @@ export async function bookPublicly(
 
   // Throws InvalidPhoneError, which the caller surfaces as a field-level message.
   const phone = normalisePhone(request.customerPhone, business.defaultCallingCode ?? '');
+  const email = cleanEmail(request.customerEmail);
 
   // The requested time must be one the business is actually offering, not merely one
   // that happens to be free.
@@ -93,8 +122,8 @@ export async function bookPublicly(
   const offered = day?.slots.some((slot) => slot.getTime() === startsAt.getTime()) ?? false;
   if (!offered) throw new SlotNotAvailableError();
 
-  const existing = await query<{ id: string; blocked: boolean }>(
-    'SELECT id, blocked FROM torim.customers WHERE phone_e164 = $1',
+  const existing = await query<{ id: string; blocked: boolean; email: string | null }>(
+    'SELECT id, blocked, email FROM torim.customers WHERE phone_e164 = $1',
     [phone],
   );
 
@@ -104,11 +133,22 @@ export async function bookPublicly(
   if (existing[0]) {
     if (existing[0].blocked) throw new CustomerBlockedError();
     customerId = existing[0].id;
+
     // Deliberately no UPDATE of the name. The owner's record wins over form input.
+    //
+    // The address fills a blank but never replaces one. Same reasoning as the name, and
+    // sharper: anyone who knows a customer's phone number could otherwise redirect her
+    // confirmations to an address of their choosing.
+    if (email && !existing[0].email) {
+      await query('UPDATE torim.customers SET email = $2, updated_at = now() WHERE id = $1', [
+        customerId,
+        email,
+      ]);
+    }
   } else {
     const created = await query<{ id: string }>(
-      'INSERT INTO torim.customers (name, phone_e164) VALUES ($1, $2) RETURNING id',
-      [name, phone],
+      'INSERT INTO torim.customers (name, phone_e164, email) VALUES ($1, $2, $3) RETURNING id',
+      [name, phone, email],
     );
     customerId = created[0]!.id;
     customerCreated = true;

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_EMAIL_LENGTH,
   MAX_NAME_LENGTH,
   MAX_NOTE_LENGTH,
   parseDateKey,
   parseDateRange,
+  parseEmail,
   parseInstant,
   parseManageToken,
   parseName,
@@ -207,5 +209,61 @@ describe('retryAfterMinutes', () => {
     expect(retryAfterMinutes(0)).toBe(1);
     expect(retryAfterMinutes(-5)).toBe(1);
     expect(retryAfterMinutes(Number.NaN)).toBe(1);
+  });
+});
+
+describe('parseEmail', () => {
+  it('treats absent, null and empty as "no email"', () => {
+    // The field is optional and only rendered when the business asked for it at all,
+    // so a blank box is a customer answering the question, not failing to.
+    expect(parseEmail(undefined)).toEqual({ ok: true });
+    expect(parseEmail(null)).toEqual({ ok: true });
+    expect(parseEmail('')).toEqual({ ok: true });
+    expect(parseEmail('   ')).toEqual({ ok: true });
+  });
+
+  it('accepts ordinary addresses and trims surrounding whitespace', () => {
+    expect(parseEmail('dana@example.com')).toEqual({ ok: true, email: 'dana@example.com' });
+    expect(parseEmail('  dana@example.com  ')).toEqual({ ok: true, email: 'dana@example.com' });
+    expect(parseEmail('dana.cohen+booking@mail.example.co.il')).toEqual({
+      ok: true,
+      email: 'dana.cohen+booking@mail.example.co.il',
+    });
+  });
+
+  it('preserves case — the local part is case-sensitive and nothing keys off it', () => {
+    expect(parseEmail('Dana.Cohen@Example.com')).toEqual({
+      ok: true,
+      email: 'Dana.Cohen@Example.com',
+    });
+  });
+
+  it('rejects the mistake it actually exists to catch: the wrong thing in the box', () => {
+    expect(parseEmail('050-123-4567')).toEqual({ ok: false });
+    expect(parseEmail('Dana Cohen')).toEqual({ ok: false });
+  });
+
+  it('rejects malformed addresses', () => {
+    expect(parseEmail('dana@')).toEqual({ ok: false });
+    expect(parseEmail('@example.com')).toEqual({ ok: false });
+    expect(parseEmail('dana@example')).toEqual({ ok: false }); // no dot in the domain
+    expect(parseEmail('dana@@example.com')).toEqual({ ok: false });
+    expect(parseEmail('dana @example.com')).toEqual({ ok: false });
+    expect(parseEmail('dana@example..com')).toEqual({ ok: false });
+    expect(parseEmail('dana@.example.com')).toEqual({ ok: false });
+  });
+
+  it('rejects anything that is not a string', () => {
+    expect(parseEmail(42)).toEqual({ ok: false });
+    expect(parseEmail({ toString: () => 'dana@example.com' })).toEqual({ ok: false });
+  });
+
+  it('rejects an address longer than SMTP will carry', () => {
+    const tooLong = `${'a'.repeat(MAX_EMAIL_LENGTH)}@example.com`;
+    expect(parseEmail(tooLong)).toEqual({ ok: false });
+
+    const atTheLimit = `${'a'.repeat(MAX_EMAIL_LENGTH - '@example.com'.length)}@example.com`;
+    expect(atTheLimit).toHaveLength(MAX_EMAIL_LENGTH);
+    expect(parseEmail(atTheLimit)).toEqual({ ok: true, email: atTheLimit });
   });
 });

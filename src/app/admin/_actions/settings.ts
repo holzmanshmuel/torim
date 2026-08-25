@@ -17,6 +17,7 @@ import type { ActionResult, SettingsFormInput } from '../types';
 import {
   CALLING_CODE_SHAPE,
   CURRENCY_SHAPE,
+  REMINDER_LEAD_MAX_MIN,
   SLUG_SHAPE,
   boundedInt,
   isTimezone,
@@ -74,6 +75,23 @@ export async function saveSettingsAction(
     );
     if (!cancellation.ok) return failValidation(context, cancellation);
 
+    // NULL and 0 are different answers, and the schema keeps the column nullable so it
+    // can say both. `remindersEnabled` false means "no reminders at all"; enabled with 0
+    // means "at the appointment time". The bounds match the CHECK on the column, so the
+    // form and the database agree rather than nearly agreeing.
+    let reminderLeadMin: number | null = null;
+    if (input.remindersEnabled === true) {
+      const lead = boundedInt(
+        input.reminderLeadMin,
+        'reminderLeadMin',
+        'reminder_range',
+        0,
+        REMINDER_LEAD_MAX_MIN,
+      );
+      if (!lead.ok) return failValidation(context, lead);
+      reminderLeadMin = lead.value;
+    }
+
     await updateBusinessSettings({
       name: name.value,
       nameHe: optionalText(input.nameHe, 120),
@@ -88,6 +106,10 @@ export async function saveSettingsAction(
       maxAdvanceDays: advance.value,
       cancellationWindowMin: cancellation.value,
       confirmNewCustomers: input.confirmNewCustomers === true,
+      reminderLeadMin,
+      // `=== true` rather than a truthiness check: a Server Function is reachable by
+      // direct POST, so this value has not necessarily been through a checkbox.
+      askCustomerEmail: input.askCustomerEmail === true,
     });
 
     return succeed(null);

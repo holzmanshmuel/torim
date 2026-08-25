@@ -457,3 +457,137 @@ describe('booking revision', () => {
     expect((await findBookingByManageToken(result.manageToken))?.revision).toBe(1);
   });
 });
+
+/**
+ * Optional email.
+ *
+ * A business only collects one if it turned the setting on, and only because it has a
+ * transport that could use it. Most never will — phone is the identity here.
+ */
+describe('customer email', () => {
+  it('stores an address when one is given', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-08-10'),
+        customerName: 'Emailed Customer',
+        customerPhone: '0507000001',
+        customerEmail: 'someone@example.invalid',
+        now: EARLY,
+      }),
+    );
+
+    const rows = await runWithTenant(businessId, () =>
+      query<{ email: string | null }>('SELECT email FROM torim.customers WHERE id = $1', [
+        result.customerId,
+      ]),
+    );
+    expect(rows[0]!.email).toBe('someone@example.invalid');
+  });
+
+  it('leaves the address null when none is given', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(10 * 60, '2026-08-10'),
+        customerName: 'No Email',
+        customerPhone: '0507000002',
+        now: EARLY,
+      }),
+    );
+    const rows = await runWithTenant(businessId, () =>
+      query<{ email: string | null }>('SELECT email FROM torim.customers WHERE id = $1', [
+        result.customerId,
+      ]),
+    );
+    expect(rows[0]!.email).toBeNull();
+  });
+
+  it('fills in a missing address for a customer who already exists', async () => {
+    const first = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(11 * 60, '2026-08-10'),
+        customerName: 'Later Emailer',
+        customerPhone: '0507000003',
+        now: EARLY,
+      }),
+    );
+
+    await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(12 * 60, '2026-08-10'),
+        customerName: 'Later Emailer',
+        customerPhone: '0507000003',
+        customerEmail: 'later@example.invalid',
+        now: EARLY,
+      }),
+    );
+
+    const rows = await runWithTenant(businessId, () =>
+      query<{ email: string | null }>('SELECT email FROM torim.customers WHERE id = $1', [
+        first.customerId,
+      ]),
+    );
+    expect(rows[0]!.email).toBe('later@example.invalid');
+  });
+
+  /**
+   * The same rule as the name, and for a sharper reason: anyone who knows a customer's
+   * phone number could otherwise redirect her confirmations to an address of their
+   * choosing. Filling a blank is helpful; replacing one is a takeover.
+   */
+  it('never replaces an address already on file', async () => {
+    const first = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(13 * 60, '2026-08-10'),
+        customerName: 'Settled Address',
+        customerPhone: '0507000004',
+        customerEmail: 'real@example.invalid',
+        now: EARLY,
+      }),
+    );
+
+    await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(14 * 60, '2026-08-10'),
+        customerName: 'Settled Address',
+        customerPhone: '0507000004',
+        customerEmail: 'attacker@example.invalid',
+        now: EARLY,
+      }),
+    );
+
+    const rows = await runWithTenant(businessId, () =>
+      query<{ email: string | null }>('SELECT email FROM torim.customers WHERE id = $1', [
+        first.customerId,
+      ]),
+    );
+    expect(rows[0]!.email).toBe('real@example.invalid');
+  });
+
+  it('rejects something that is not an address rather than storing it', async () => {
+    await expect(
+      runWithTenant(businessId, () =>
+        bookPublicly({
+          businessId,
+          serviceId,
+          startsAt: at(15 * 60, '2026-08-10'),
+          customerName: 'Bad Address',
+          customerPhone: '0507000005',
+          customerEmail: 'not-an-email',
+          now: EARLY,
+        }),
+      ),
+    ).rejects.toThrow(/email/i);
+  });
+});

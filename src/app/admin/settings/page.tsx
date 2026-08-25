@@ -1,12 +1,18 @@
 import { findBusinessById } from '@/lib/businesses';
 import { getLang, getT } from '@/lib/i18n';
 import { SettingsForm } from '../_components/SettingsForm';
-import { getSignedInUser } from '../data';
+import { getMessagingSettings, getSignedInUser } from '../data';
 import { adminDictionary } from '../dictionary';
 import { interpolate } from '../format';
 import { guard } from '../guard';
 import { runWithTenant } from '@/lib/tenant';
 import type { SettingsFormInput } from '../types';
+
+/**
+ * What the minutes box starts at when she first switches reminders on. A day ahead is
+ * the answer most businesses give; it is a starting value, not a policy.
+ */
+const DEFAULT_REMINDER_LEAD_MIN = 1440;
 
 /**
  * Settings, plus the account section.
@@ -24,11 +30,12 @@ export default async function AdminSettingsPage() {
   const context = await guard();
 
   const data = await runWithTenant(context.businessId, async () => {
-    const [business, user] = await Promise.all([
+    const [business, user, messaging] = await Promise.all([
       findBusinessById(context.businessId),
       getSignedInUser(context.userId),
+      getMessagingSettings(),
     ]);
-    return { business, user };
+    return { business, user, messaging };
   });
 
   const business = data.business;
@@ -48,6 +55,13 @@ export default async function AdminSettingsPage() {
     maxAdvanceDays: String(business.maxAdvanceDays),
     cancellationWindowMin: String(business.cancellationWindowMin),
     confirmNewCustomers: business.confirmNewCustomers,
+    // NULL is "no reminders at all", which is a different answer from 0 minutes. The
+    // switch carries that distinction into the form; the number field is only read when
+    // the switch is on, so an off business keeps a sensible starting value rather than
+    // an empty box.
+    remindersEnabled: data.messaging.reminderLeadMin !== null,
+    reminderLeadMin: String(data.messaging.reminderLeadMin ?? DEFAULT_REMINDER_LEAD_MIN),
+    askCustomerEmail: data.messaging.askCustomerEmail,
   };
 
   // APP_BASE_URL is optional in development; falling back to the path alone keeps the

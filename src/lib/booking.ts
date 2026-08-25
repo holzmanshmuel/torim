@@ -13,6 +13,11 @@
  */
 import type { PoolClient } from 'pg';
 import { withTransaction } from './db';
+import {
+  afterBookingCancelled,
+  afterBookingCreated,
+  afterBookingRescheduled,
+} from './notify/hooks';
 import { instantToDateKey } from './time';
 
 export class BookingConflictError extends Error {
@@ -163,7 +168,7 @@ export type CreateBookingArgs = {
 export async function createBooking(args: CreateBookingArgs): Promise<Booking> {
   const { businessId, customerId, serviceId, startsAt, source } = args;
 
-  return withTransaction(async (client) => {
+  const booking = await withTransaction(async (client) => {
     const timezone = await businessTimezone(client, businessId);
     await lockDay(client, businessId, instantToDateKey(startsAt, timezone));
 
@@ -221,6 +226,11 @@ export async function createBooking(args: CreateBookingArgs): Promise<Booking> {
 
     return toBooking(rows[0]!, conflictId !== null);
   });
+
+  // After the commit, deliberately: the queue writes on their own connection and would
+  // not see an uncommitted booking. Never throws — see notify/hooks.
+  await afterBookingCreated(booking.id);
+  return booking;
 }
 
 export type RescheduleArgs = {
@@ -233,7 +243,7 @@ export type RescheduleArgs = {
 export async function rescheduleBooking(args: RescheduleArgs): Promise<Booking> {
   const { bookingId, startsAt, by } = args;
 
-  return withTransaction(async (client) => {
+  const booking = await withTransaction(async (client) => {
     const { rows: existing } = await client.query<{
       business_id: string;
       starts_at: Date;
@@ -279,6 +289,11 @@ export async function rescheduleBooking(args: RescheduleArgs): Promise<Booking> 
 
     return toBooking(rows[0]!, conflictId !== null);
   });
+
+  // The confirmation stands — the customer was told, and that happened. The reminder was
+  // scheduled against the old time and is now wrong, so it is dropped and re-queued.
+  await afterBookingRescheduled(booking.id);
+  return booking;
 }
 
 export type CancelArgs = {
@@ -292,7 +307,7 @@ export async function cancelBooking(args: CancelArgs): Promise<Booking> {
   const { bookingId, by } = args;
   const now = args.now ?? new Date();
 
-  return withTransaction(async (client) => {
+  const booking = await withTransaction(async (client) => {
     // The window restrains customers, never the owner: she has to be able to clear her
     // own day at any notice, including for a walk-out five minutes beforehand.
     if (by === 'customer') {
@@ -333,6 +348,9 @@ export async function cancelBooking(args: CancelArgs): Promise<Booking> {
     if (rows.length === 0) throw new BookingNotFoundError(bookingId);
     return toBooking(rows[0]!, false);
   });
+
+  await afterBookingCancelled(booking.id);
+  return booking;
 }
 
 export type MarkNoShowArgs = {

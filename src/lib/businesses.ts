@@ -23,6 +23,10 @@ export type PublicBusiness = {
   cancellationWindowMin: number;
   confirmNewCustomers: boolean;
   ownerWhatsappPhone: string | null;
+  /** Whether the booking form asks for an optional email. Off unless a business turns it on. */
+  askCustomerEmail: boolean;
+  /** Minutes before an appointment a reminder is due. Null means this business wants none. */
+  reminderLeadMin: number | null;
 };
 
 type Row = {
@@ -40,11 +44,14 @@ type Row = {
   cancellation_window_min: number;
   confirm_new_customers: boolean;
   owner_whatsapp_phone: string | null;
+  ask_customer_email: boolean;
+  reminder_lead_min: number | null;
 };
 
 const COLUMNS = `id, slug, name, name_he, timezone, default_locale, currency, default_calling_code,
                  slot_granularity_min, min_notice_min, max_advance_days,
-                 cancellation_window_min, confirm_new_customers, owner_whatsapp_phone`;
+                 cancellation_window_min, confirm_new_customers, owner_whatsapp_phone,
+                 ask_customer_email, reminder_lead_min`;
 
 function toBusiness(row: Row): PublicBusiness {
   return {
@@ -62,6 +69,8 @@ function toBusiness(row: Row): PublicBusiness {
     cancellationWindowMin: row.cancellation_window_min,
     confirmNewCustomers: row.confirm_new_customers,
     ownerWhatsappPhone: row.owner_whatsapp_phone,
+    askCustomerEmail: row.ask_customer_email,
+    reminderLeadMin: row.reminder_lead_min,
   };
 }
 
