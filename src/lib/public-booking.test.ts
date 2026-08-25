@@ -387,3 +387,73 @@ describe('managing a booking by its token', () => {
     ).rejects.toBeInstanceOf(SlotNotAvailableError);
   });
 });
+
+/**
+ * SEQUENCE in an iCal file must increase with every revision, or a calendar client is
+ * entitled to ignore an update and leave the old time sitting in someone's diary.
+ *
+ * A constant 0 fails that outright. Deriving it from the appointment's start time fails
+ * subtly and worse: it advances when a booking moves later and goes BACKWARDS when it
+ * moves earlier, so "your appointment is an hour earlier" is exactly the update a strict
+ * client discards. A revision counter is monotonic by construction.
+ */
+describe('booking revision', () => {
+  it('starts at zero', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-07-20'),
+        customerName: 'Revision Zero',
+        customerPhone: '0501010101',
+        now: EARLY,
+      }),
+    );
+    const found = await findBookingByManageToken(result.manageToken);
+    expect(found?.revision).toBe(0);
+  });
+
+  it('advances when the booking is moved', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-07-27'),
+        customerName: 'Revision Mover',
+        customerPhone: '0502020202',
+        now: EARLY,
+      }),
+    );
+
+    await rescheduleByManageToken({
+      token: result.manageToken,
+      startsAt: at(11 * 60, '2026-07-27'),
+      now: EARLY,
+    });
+    expect((await findBookingByManageToken(result.manageToken))?.revision).toBe(1);
+
+    // Moving EARLIER must still advance it — this is the case a start-time-derived
+    // sequence gets wrong.
+    await rescheduleByManageToken({
+      token: result.manageToken,
+      startsAt: at(10 * 60, '2026-07-27'),
+      now: EARLY,
+    });
+    expect((await findBookingByManageToken(result.manageToken))?.revision).toBe(2);
+  });
+
+  it('advances when the booking is cancelled', async () => {
+    const result = await runWithTenant(businessId, () =>
+      bookPublicly({
+        businessId,
+        serviceId,
+        startsAt: at(9 * 60, '2026-08-03'),
+        customerName: 'Revision Canceller',
+        customerPhone: '0503030303',
+        now: EARLY,
+      }),
+    );
+    await cancelByManageToken({ token: result.manageToken, now: at(9 * 60, '2026-08-01') });
+    expect((await findBookingByManageToken(result.manageToken))?.revision).toBe(1);
+  });
+});

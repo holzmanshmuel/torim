@@ -32,6 +32,11 @@ export type ManagedBooking = {
   business: PublicBusiness;
   service: ServiceSummary;
   customer: { id: string; name: string; phone: string };
+  /**
+   * Monotonic revision counter. Feed this straight into the iCal SEQUENCE field — see
+   * migration 006 for why neither a constant nor the start time works.
+   */
+  revision: number;
 };
 
 type BookingRow = {
@@ -45,6 +50,7 @@ type BookingRow = {
   manage_token: string;
   cancelled_at: Date | null;
   cancelled_by: Actor | null;
+  revision: number;
 };
 
 async function businessForToken(token: string): Promise<string | null> {
@@ -67,7 +73,7 @@ export async function findBookingByManageToken(token: string): Promise<ManagedBo
   return runWithTenant(businessId, async () => {
     const rows = await query<BookingRow>(
       `SELECT id, customer_id, service_id, starts_at, ends_at, status, price_minor,
-              manage_token, cancelled_at, cancelled_by
+              manage_token, cancelled_at, cancelled_by, revision
          FROM torim.bookings WHERE manage_token = $1`,
       [token],
     );
@@ -101,6 +107,7 @@ export async function findBookingByManageToken(token: string): Promise<ManagedBo
       business,
       service,
       customer: { id: customer.id, name: customer.name, phone: customer.phone_e164 },
+      revision: row.revision,
     };
   });
 }

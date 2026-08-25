@@ -266,6 +266,8 @@ export async function rescheduleBooking(args: RescheduleArgs): Promise<Booking> 
           SET starts_at = $2,
               ends_at   = $3,
               updated_at = now(),
+              -- Monotonic, for iCal SEQUENCE. See migration 006.
+              revision = revision + 1,
               last_customer_change_at =
                 CASE WHEN $4 = 'customer' THEN now() ELSE last_customer_change_at END,
               owner_seen_at =
@@ -319,6 +321,7 @@ export async function cancelBooking(args: CancelArgs): Promise<Booking> {
               cancelled_at = now(),
               cancelled_by = $2,
               updated_at = now(),
+              revision = revision + 1,
               last_customer_change_at =
                 CASE WHEN $2 = 'customer' THEN now() ELSE last_customer_change_at END,
               owner_seen_at =
@@ -362,7 +365,7 @@ export async function markNoShow(args: MarkNoShowArgs): Promise<Booking> {
 
     const { rows } = await client.query<BookingRow>(
       `UPDATE torim.bookings
-          SET status = 'no_show', updated_at = now()
+          SET status = 'no_show', updated_at = now(), revision = revision + 1
         WHERE id = $1
         RETURNING ${RETURNING}`,
       [bookingId],
