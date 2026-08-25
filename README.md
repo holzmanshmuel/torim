@@ -30,7 +30,11 @@ WhatsApp is a `wa.me` link the owner taps, not an API integration.
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22.22+ (24 recommended — CI runs 24)
+
+  > Node 20 reached end of life in April 2026. The app itself would run on it, but
+  > the test suite needs a supported runtime, and shipping a booking system that
+  > handles personal data on an unmaintained Node is not a trade worth making.
 - PostgreSQL 14+
 
 ## Self-hosting quickstart
