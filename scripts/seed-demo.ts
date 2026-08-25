@@ -35,6 +35,8 @@ const NAME = 'Lumen Beauty Studio';
 const NAME_HE = 'סטודיו לומן';
 const TIMEZONE = 'Asia/Jerusalem';
 const CURRENCY = 'ILS';
+/** Israel. Lets the demo accept a locally-typed number like "050-123-4567". */
+const CALLING_CODE = '972';
 const OWNER_WHATSAPP = '+16465550109'; // reserved fictional-use number (NANPA 555-01xx block)
 
 // Business weekday convention used throughout the schema: 0=Sunday … 6=Saturday.
@@ -115,19 +117,36 @@ async function main(): Promise<void> {
     console.log(`Seeding demo business "${NAME}" (slug: ${SLUG})...\n`);
 
     const business = await systemQueryOne<{ id: string }>(
+      // default_calling_code matters more than it looks: without it a visitor typing
+      // "050-123-4567" on the demo page is rejected, because a local number cannot be
+      // resolved to E.164 without knowing the country. The demo is the shop window.
+      //
+      // cancellation_window_min is 60 rather than the 24-hour default so the demo's
+      // cancel flow actually works. Worth knowing WHY: if a business lets customers book
+      // with less notice than its cancellation window, they can create a booking they
+      // immediately cannot cancel online. Sensible for a real salon, terrible on a demo
+      // where the first free slot is often today.
+      //
+      // confirm_new_customers is deliberately false here. It is a real feature — the
+      // owner screening first-time customers — but on a demo it would greet every
+      // visitor's booking with "the business will confirm", which reads as broken
+      // rather than as a feature. Flip it to see that flow.
       `INSERT INTO torim.businesses
-         (slug, name, name_he, timezone, default_locale, currency, confirm_new_customers, owner_whatsapp_phone)
-       VALUES ($1, $2, $3, $4, 'en', $5, true, $6)
+         (slug, name, name_he, timezone, default_locale, currency, default_calling_code,
+          confirm_new_customers, cancellation_window_min, owner_whatsapp_phone)
+       VALUES ($1, $2, $3, $4, 'en', $5, $6, false, 60, $7)
        ON CONFLICT (slug) DO UPDATE SET
          name = EXCLUDED.name,
          name_he = EXCLUDED.name_he,
          timezone = EXCLUDED.timezone,
          currency = EXCLUDED.currency,
+         default_calling_code = EXCLUDED.default_calling_code,
          confirm_new_customers = EXCLUDED.confirm_new_customers,
+         cancellation_window_min = EXCLUDED.cancellation_window_min,
          owner_whatsapp_phone = EXCLUDED.owner_whatsapp_phone,
          updated_at = now()
        RETURNING id`,
-      [SLUG, NAME, NAME_HE, TIMEZONE, CURRENCY, OWNER_WHATSAPP],
+      [SLUG, NAME, NAME_HE, TIMEZONE, CURRENCY, CALLING_CODE, OWNER_WHATSAPP],
     );
     if (!business) throw new Error('Business upsert returned no row.');
     const businessId = business.id;
