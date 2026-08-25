@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Keep the example env committed; the real one is ignored above.
 !.env.example
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
