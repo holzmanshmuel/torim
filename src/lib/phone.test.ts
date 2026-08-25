@@ -29,7 +29,7 @@ describe('normalisePhone', () => {
    * feed, so they never reach the database.
    */
   it('strips bidi control characters before parsing', () => {
-    expect(normalisePhone('‮050-123-4567‬', '972')).toBe('+972501234567');
+    expect(normalisePhone('\u202E050-123-4567\u202C', '972')).toBe('+972501234567');
   });
 
   it('rejects a number that is too short to be real', () => {
