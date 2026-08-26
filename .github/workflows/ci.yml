@@ -114,4 +114,13 @@ jobs:
       # points at the same migrated, granted torim_ci database used by the steps
       # above. There is no mocking layer — these tests assert real RLS behavior
       # against real Postgres.
+      #
+      # MIGRATE_DATABASE_URL is set here too, pointed at the SAME torim_ci database
+      # (unlike the two steps above, which used it to set up a schema that didn't
+      # exist yet). src/lib/reset-demo.test.ts proves scripts/reset-demo.ts's TRUNCATE
+      # behavior, and TRUNCATE is an owner-level operation the restricted app role is
+      # deliberately not granted (see scripts/grant-app-role.ts) — so that one test
+      # file needs its own owner-level connection, the same way the script itself does.
       - run: npm run test
+        env:
+          MIGRATE_DATABASE_URL: postgres://torim_ci_owner:torim_ci_owner_pw@localhost:5432/torim_ci

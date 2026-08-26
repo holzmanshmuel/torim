@@ -14,7 +14,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "db:grant": "tsx scripts/grant-app-role.ts",
     "db:check-role": "tsx scripts/check-role.ts",
-    "db:seed": "tsx scripts/seed-demo.ts"
+    "db:seed": "tsx scripts/seed-demo.ts",
+    "db:reset": "tsx scripts/reset-demo.ts"
   },
   "dependencies": {
     "iron-session": "^8.0.4",

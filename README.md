@@ -141,6 +141,11 @@ mistyped or stale `DATABASE_URL` and destroying a real business's data with no w
 Leave it unset. Never put it in a shell profile or a platform environment — if you ever
 genuinely need it, prefix the single command with it and let it die there.
 
+`npm run db:reset` is more destructive still: it TRUNCATEs every table in schema `torim`
+except `schema_migrations`, for every business, as the schema owner
+(`MIGRATE_DATABASE_URL`) — sharing the same database-name guard and
+`ALLOW_DESTRUCTIVE_SEED` escape hatch.
+
 ## First run: getting into /admin
 
 The seed creates a business. It does **not** create a user, and it deliberately cannot:
