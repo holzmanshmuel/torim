@@ -83,43 +83,62 @@ html[lang="he"] {
   --font-mono: var(--font-mono);
 }
 
-html {
-  color-scheme: light;
+/* Element defaults belong in a layer, and specifically in `base`.
+ *
+ * Cascade layers beat specificity outright: an unlayered rule wins over every
+ * rule inside a layer, however specific the layered selector is. Tailwind's
+ * utilities live in `@layer utilities`, so a bare `a { color: … }` written out
+ * here would override `text-surface` on every anchor in the app — which is
+ * exactly what it did, rendering the confirmation screen's primary call to
+ * action as blue text on a blue button. `src/lib/css-layers.test.ts` keeps this
+ * from coming back. */
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  /* A default for prose links. Anything styled as a button — a `<Link>` with
+     `bg-blue text-surface` — must be able to override it, which is only true
+     from inside a layer. */
+  a {
+    color: var(--blue);
+  }
+
+  a:hover {
+    color: var(--blue-700);
+  }
 }
 
-body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-display);
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-
-a {
-  color: var(--blue);
-}
-
-a:hover {
-  color: var(--blue-700);
-}
-
-/* Visible focus everywhere - no exceptions, no outline: none. */
+/* Visible focus everywhere - no exceptions, no outline: none.
+ * Deliberately NOT in a layer: being unlayered is what stops a stray
+ * `focus:outline-none` utility from removing it, which is the entire point of
+ * the rule. */
 :focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* iOS Safari zooms in on focus and stays zoomed for any input under 16px. */
+/* iOS Safari zooms in on focus and stays zoomed for any input under 16px.
+ * Also deliberately unlayered, for the same reason: it has to outrank a
+ * `text-sm` on an input, or the zoom comes back. */
 input,
 select,
 textarea {
