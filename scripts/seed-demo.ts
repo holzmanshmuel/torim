@@ -11,7 +11,8 @@
  *
  * ⚠ Destructive by design, guarded on purpose. The predecessor project's seed and reset
  * scripts read the same DATABASE_URL as production with no guard at all — this one
- * refuses to run unless the target database name looks like development or test.
+ * refuses to run unless the target database name looks disposable — development,
+ * test, or the public hosted demo (see src/lib/seed-safety.ts for the exact rule).
  *
  * Respects tenancy: the business row itself is pre-tenant (systemQuery, against the
  * non-RLS torim.businesses table); everything else is tenant-scoped and only reachable
@@ -28,6 +29,7 @@ loadEnv({ path: '.env.local', quiet: true });
 loadEnv({ quiet: true });
 
 import { closePool, query, systemQuery, systemQueryOne } from '../src/lib/db';
+import { isDisposableDatabaseName } from '../src/lib/seed-safety';
 import { runWithTenant } from '../src/lib/tenant';
 
 const SLUG = 'demo';
@@ -58,7 +60,7 @@ type Customer = { id: string; name: string };
  */
 function assertSafeToSeed(): void {
   if (process.env.ALLOW_DESTRUCTIVE_SEED === '1') {
-    console.warn('ALLOW_DESTRUCTIVE_SEED=1 is set — skipping the dev/test database name check.\n');
+    console.warn('ALLOW_DESTRUCTIVE_SEED=1 is set — skipping the disposable-database-name check.\n');
     return;
   }
 
@@ -80,10 +82,10 @@ function assertSafeToSeed(): void {
     return;
   }
 
-  if (!/(_dev|_test)$/i.test(dbName)) {
+  if (!isDisposableDatabaseName(dbName)) {
     console.error(
       `Refusing to run: DATABASE_URL points at database "${dbName}", which does not look like a\n` +
-        'development or test database (expected a name ending in "_dev" or "_test").\n\n' +
+        'disposable database (expected a name ending in "_dev", "_test", or "_demo").\n\n' +
         'This script is DESTRUCTIVE — it deletes and re-inserts every services/working-hours/\n' +
         'closures/customers/bookings row belonging to the "demo" business. Running it against a\n' +
         'real database would destroy real data with no way back.\n\n' +

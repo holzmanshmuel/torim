@@ -51,9 +51,9 @@ npm ci
 cp .env.example .env.local
 ```
 
-Create a database. **Name it with a `_dev` or `_test` suffix** — `npm run db:seed`
-is destructive and refuses to run against anything else, so that the demo seed can
-never be pointed at a real instance by accident:
+Create a database. **Name it with a `_dev`, `_test`, or `_demo` suffix** — `npm run
+db:seed` is destructive and refuses to run against anything else, so that the demo
+seed can never be pointed at a real instance by accident:
 
 ```bash
 createdb torim_dev
@@ -131,8 +131,10 @@ the obvious one — see [First run: getting into /admin](#first-run-getting-into
 
 `npm run db:seed` deletes and re-inserts every service, working-hours row, closure,
 customer and booking belonging to the `demo` business. Its only guard is the *name* of
-the database in `DATABASE_URL`: it refuses to run unless that name ends in `_dev` or
-`_test`, which is why the quickstart names the database `torim_dev`.
+the database in `DATABASE_URL`: it refuses to run unless that name ends in `_dev`,
+`_test`, or `_demo`, which is why the quickstart names the database `torim_dev` (and
+why a publicly hosted demo can safely use `torim_demo` instead of ever setting
+`ALLOW_DESTRUCTIVE_SEED`).
 
 `ALLOW_DESTRUCTIVE_SEED=1` turns that guard off. It is the one thing standing between a
 mistyped or stale `DATABASE_URL` and destroying a real business's data with no way back.
