@@ -5,7 +5,7 @@
  * link has no session and no tenant context, so the slug has to be resolvable before
  * one exists. That is why these use the systemQuery path — reach for it knowingly.
  */
-import { systemQueryOne } from './db';
+import { systemQuery, systemQueryOne } from './db';
 
 export type PublicBusiness = {
   id: string;
@@ -92,4 +92,36 @@ export async function findBusinessById(id: string): Promise<PublicBusiness | nul
     id,
   ]);
   return row ? toBusiness(row) : null;
+}
+/**
+ * What shape of instance is this?
+ *
+ * Torim is multi-tenant, but most deployments are one salon on one box. `/` cannot
+ * answer "what should I show?" without knowing which of the three cases it is in, and
+ * the three want genuinely different pages: an empty instance wants its owner to sign
+ * in and create a business, a single-business instance wants to *be* that booking page,
+ * and a shared instance must not hint at who else is on it.
+ *
+ * `LIMIT 2` is the whole trick: two rows is all it takes to tell none from one from
+ * many, so this never scans a tenant list however large the instance grows — and it
+ * never has one in memory to leak.
+ *
+ * Uses the systemQuery path knowingly: `torim.businesses` is one of the three tables
+ * deliberately outside RLS (see the header of scripts/sql/001_tenancy.sql), precisely
+ * because it has to be readable before any tenant context exists. Nothing here is
+ * routing around a policy.
+ */
+export type InstanceShape =
+  | { kind: 'empty' }
+  | { kind: 'single'; slug: string }
+  | { kind: 'multi' };
+
+export async function describeInstance(): Promise<InstanceShape> {
+  const rows = await systemQuery<{ slug: string }>(
+    'SELECT slug FROM torim.businesses ORDER BY created_at, slug LIMIT 2',
+  );
+
+  if (rows.length === 0) return { kind: 'empty' };
+  if (rows.length === 1) return { kind: 'single', slug: rows[0].slug };
+  return { kind: 'multi' };
 }

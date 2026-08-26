@@ -34,12 +34,24 @@ const en: Dictionary = {
   'common.goHome': 'Back to home',
   'common.tryAgain': 'Try again',
 
-  'home.badge': 'Coming soon',
+  'home.badge': 'Booking software',
   'home.heading': 'Simple, bilingual appointment booking',
   'home.tagline':
     'Torim gives small businesses a clean way to manage bookings in Hebrew and English.',
-  'home.description':
-    'The booking page for this business isn’t live yet. Once it is, customers will be able to pick a time here in their own language.',
+
+  'home.book.title': 'Here to book an appointment?',
+  'home.book.body':
+    'Every business has its own booking link — use the one yours gave you. There is no directory here by design: businesses on this instance cannot see, or be found through, each other.',
+
+  'home.owner.title': 'Run a business?',
+  'home.owner.body': 'Sign in to manage your services, opening hours and appointments.',
+  'home.owner.cta': 'Sign in',
+
+  'home.setup.badge': 'First run',
+  'home.setup.heading': 'No business is set up yet',
+  'home.setup.body':
+    'Torim is installed and running. Sign in to create the first business — you will get a booking link to share with your customers straight away.',
+  'home.setup.cta': 'Create the first business',
 
   'notFound.title': 'Page not found',
   'notFound.description': 'This page doesn’t exist, or it may have moved.',
@@ -102,13 +114,26 @@ const he: Dictionary = {
   'common.goHome': 'חזרה לדף הבית',
   'common.tryAgain': 'נסה שוב',
 
-  'home.badge': 'בקרוב',
+  'home.badge': 'מערכת לקביעת תורים',
   'home.heading':
     'קביעת תורים דו-לשונית ופשוטה',
   'home.tagline':
     'טורים נותן לעסקים קטנים דרך נקייה לנהל תורים בעברית ובאנגלית.',
-  'home.description':
-    'דף קביעת התורים של העסק הזה עוד לא פעיל. כשהוא יעלה, לקוחות יוכלו לבחור כאן זמן פנוי בשפה שלהם.',
+
+  'home.book.title': 'באתם לקבוע תור?',
+  'home.book.body':
+    'לכל עסק יש קישור משלו לקביעת תורים — השתמשו בקישור שקיבלתם מהעסק. אין כאן מדריך עסקים, וזה בכוונה: עסקים על השרת הזה לא רואים זה את זה ולא ניתן להגיע מאחד לשני.',
+
+  'home.owner.title': 'מנהלים עסק?',
+  'home.owner.body':
+    'התחברו כדי לנהל את השירותים, שעות הפעילות והתורים שלכם.',
+  'home.owner.cta': 'התחברות',
+
+  'home.setup.badge': 'הפעלה ראשונה',
+  'home.setup.heading': 'עדיין לא הוגדר עסק',
+  'home.setup.body':
+    'טורים מותקן ופעיל. התחברו כדי ליצור את העסק הראשון — מיד תקבלו קישור לקביעת תורים לשתף עם הלקוחות.',
+  'home.setup.cta': 'יצירת העסק הראשון',
 
   'notFound.title': 'הדף לא נמצא',
   'notFound.description':
