@@ -1,10 +1,28 @@
 # Torim
 
+[![CI](https://github.com/holzmanshmuel/torim/actions/workflows/ci.yml/badge.svg)](https://github.com/holzmanshmuel/torim/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Torim (תורים — Hebrew for "queues"/"appointments") is open-source appointment
 booking software for small service businesses: salons, barbers, clinics, studios,
 anyone who takes bookings by the slot. It's multi-tenant (one deployment can host
 many businesses), mobile-first, and bilingual — English and Hebrew with right-to-left
 layout — from the ground up. MIT licensed.
+
+## Try it
+
+**[torim.holzman-ai.com/b/demo](https://torim.holzman-ai.com/b/demo)** — a live
+instance with a fictional salon in it. Book something; it is the real application,
+not a video.
+
+Two things worth knowing before you type anything into it. The demo **resets every
+night**, so whatever you book will be gone. And it has **no messaging transport
+configured**, which is the default for a fresh clone — so nothing you enter is sent
+anywhere, to you or to anyone else.
+
+The owner-facing side is not reachable from the demo, because signing in would mean
+handing us a Google account. To see it, run it locally: the quickstart below seeds
+the same fictional business.
 
 ## Status
 
