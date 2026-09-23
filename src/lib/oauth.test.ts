@@ -279,6 +279,12 @@ describe('resolveOAuthRedirectUri', () => {
     expect(resolveOAuthRedirectUri('old.example.com')).toBe(OLD_URI);
   });
 
+  it('treats an empty SERVER_ACTIONS_ALLOWED_ORIGINS exactly like an unset one', () => {
+    process.env.SERVER_ACTIONS_ALLOWED_ORIGINS = '';
+    expect(resolveOAuthRedirectUri('new.example.com')).toBe(OLD_URI);
+    expect(resolveOAuthRedirectUri('old.example.com')).toBe(OLD_URI);
+  });
+
   /**
    * Later, the configured address moves to the new name. The old one stays listed so
    * bookmarks keep working, and its sign-ins must still come back to it.

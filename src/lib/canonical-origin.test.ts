@@ -96,6 +96,18 @@ describe('allowedHosts — SERVER_ACTIONS_ALLOWED_ORIGINS', () => {
     ).toEqual(['old.example.com', 'new.example.com']);
   });
 
+  /**
+   * An environment variable can be present but empty — a container ENV fed from a build
+   * argument that was never passed, or a platform variable saved blank. That must mean
+   * exactly what unset means, not an error and not a stray empty host.
+   */
+  it('treats an empty value exactly like an unset one', () => {
+    expect(
+      allowedHosts({ APP_BASE_URL: 'https://old.example.com', SERVER_ACTIONS_ALLOWED_ORIGINS: '' }),
+    ).toEqual(allowedHosts({ APP_BASE_URL: 'https://old.example.com' }));
+    expect(allowedHosts({ APP_BASE_URL: '', SERVER_ACTIONS_ALLOWED_ORIGINS: '' })).toEqual([]);
+  });
+
   it('works on its own when APP_BASE_URL is unset', () => {
     expect(allowedHosts({ SERVER_ACTIONS_ALLOWED_ORIGINS: 'new.example.com' })).toEqual([
       'new.example.com',
