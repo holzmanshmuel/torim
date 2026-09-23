@@ -10,10 +10,22 @@
  * where they were going. It is laundered through `safeRedirectPath` first — an open
  * redirect on the sign-in route is a phishing primitive, since the victim genuinely
  * did start on our domain.
+ *
+ * On a deployment with more than one hostname, Google is asked to send the browser
+ * back to the host the sign-in started on, because that is the only host holding the
+ * cookie with the state — see `resolveOAuthRedirectUri`. The URI chosen is parked in
+ * the session too, because the code exchange has to repeat it exactly.
  */
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSession, safeRedirectPath } from '@/lib/auth';
-import { buildGoogleAuthUrl, createOAuthState, OAuthError } from '@/lib/oauth';
+import {
+  buildGoogleAuthUrl,
+  CANONICAL_HOST_HEADER,
+  createOAuthState,
+  OAuthError,
+  resolveOAuthRedirectUri,
+} from '@/lib/oauth';
+import { redirectToPath } from '@/lib/same-host-redirect';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +43,10 @@ export async function GET(request: NextRequest) {
       delete session.postLoginRedirect;
     }
 
-    const authorizeUrl = buildGoogleAuthUrl(state);
+    const redirectUri = resolveOAuthRedirectUri(request.headers.get(CANONICAL_HOST_HEADER));
+    session.oauthRedirectUri = redirectUri;
+
+    const authorizeUrl = buildGoogleAuthUrl(state, redirectUri);
     await session.save();
 
     return NextResponse.redirect(authorizeUrl);
@@ -40,6 +55,6 @@ export async function GET(request: NextRequest) {
     // owner as a stack trace. Log it, bounce them to /login with a flag.
     console.error('[auth] failed to start Google sign-in', err);
     const reason = err instanceof OAuthError ? err.reason : 'signin_failed';
-    return NextResponse.redirect(new URL(`/login?error=${reason}`, request.url));
+    return redirectToPath(`/login?error=${reason}`);
   }
 }

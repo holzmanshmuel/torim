@@ -217,10 +217,11 @@ In the [Google Cloud console](https://console.cloud.google.com/apis/credentials)
    > [!IMPORTANT]
    > It must match **byte for byte** — scheme, host, port, path, and no trailing slash.
    > `127.0.0.1` is not `localhost` as far as Google is concerned. Torim reads this
-   > value from configuration and never derives it from the incoming request, precisely
-   > so it cannot drift; it is sent both on the way out to Google and again during the
-   > code exchange, and Google rejects the whole sign-in if either copy differs from
-   > what is registered.
+   > value from configuration rather than the incoming request, precisely so it cannot
+   > drift; it is sent both on the way out to Google and again during the code
+   > exchange, and Google rejects the whole sign-in if either copy differs from what is
+   > registered. (A deployment on more than one hostname registers one per host — see
+   > [Running it for real](#running-it-for-real).)
 3. **Add yourself as a test user.** A new OAuth client's consent screen starts in
    *Testing* publishing status, and while it is there only Google accounts on its
    **Test users** list may complete the flow — in the current console that list lives
@@ -339,6 +340,14 @@ What has to change from the development values:
   problem: management links in notification emails fall back to a relative
   `/manage/<token>` that is a dead link the moment it leaves the server, and the admin
   settings page shows that same relative path as the business's shareable booking link.
+- **More than one hostname** (for example while moving to a new domain, with both
+  names working): list them in `SERVER_ACTIONS_ALLOWED_ORIGINS`, comma-separated. Behind
+  a proxy that rewrites the `Host` header, that list is what lets form submissions
+  through on each name. If the proxy also reports the browser's hostname in
+  `X-Canonical-Host` (setting it, never passing a client's value through), Google
+  sign-in comes back to whichever listed host it started on, so register
+  `https://<each host>/api/auth/google/callback` with Google. A host that is not
+  listed always gets `OAUTH_REDIRECT_URI`.
 - **Serve it over HTTPS.** The session cookie is set `secure` when `NODE_ENV` is
   `production` (`getSessionOptions` in `src/lib/auth.ts`), so a plain-HTTP production
   origin means the browser drops the cookie carrying the OAuth `state` nonce and every

@@ -14,10 +14,15 @@
  * The session stores `role` alongside `businessId`, but only so UI chrome can render
  * without a database round trip — `requireAuth()` re-reads the membership on every
  * request and never trusts this copy.
+ *
+ * Every redirect out of here is a relative path, so the user lands on the host they
+ * signed in on — the only host holding the session cookie just written. See
+ * `redirectToPath` for why `request.url` cannot be used to build it.
  */
-import { NextResponse, type NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { getSession, safeRedirectPath } from '@/lib/auth';
 import { completeGoogleSignIn, OAuthError } from '@/lib/oauth';
+import { redirectToPath } from '@/lib/same-host-redirect';
 import { getMembershipsForUser, upsertUserByGoogleSub } from '@/lib/users';
 
 export const dynamic = 'force-dynamic';
@@ -33,20 +38,23 @@ export async function GET(request: NextRequest) {
   // The user pressed "cancel" on Google's consent screen. Not a failure worth logging.
   const denied = params.get('error');
   if (denied) {
-    return NextResponse.redirect(new URL('/login?error=access_denied', request.url));
+    return redirectToPath('/login?error=access_denied');
   }
 
   const session = await getSession();
 
-  // One-shot: read it, then drop it whatever happens next.
+  // One-shot: read them, then drop them whatever happens next.
   const expectedState = session.oauthState;
+  const redirectUri = session.oauthRedirectUri;
   delete session.oauthState;
+  delete session.oauthRedirectUri;
 
   try {
     const profile = await completeGoogleSignIn({
       code: params.get('code'),
       state: params.get('state'),
       expectedState,
+      redirectUri,
     });
 
     const user = await upsertUserByGoogleSub({
@@ -79,13 +87,13 @@ export async function GET(request: NextRequest) {
     await session.save();
 
     const destination = active ? (requested ?? DEFAULT_LANDING) : ONBOARDING;
-    return NextResponse.redirect(new URL(destination, request.url));
+    return redirectToPath(destination);
   } catch (err) {
     // Includes the state mismatch, which is the CSRF rejection. Wipe the half-built
     // session rather than leaving a partially-populated one behind.
     console.error('[auth] Google sign-in callback failed', err);
     session.destroy();
     const reason = err instanceof OAuthError ? err.reason : 'signin_failed';
-    return NextResponse.redirect(new URL(`/login?error=${reason}`, request.url));
+    return redirectToPath(`/login?error=${reason}`);
   }
 }
