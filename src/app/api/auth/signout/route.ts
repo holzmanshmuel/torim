@@ -10,19 +10,19 @@
  * `session.destroy()` clears the sealed cookie. There is no server-side session record
  * to revoke — the cookie *is* the session — so this is the whole of signing out.
  */
-import { NextResponse, type NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { redirectToPath } from '@/lib/same-host-redirect';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   const session = await getSession();
   session.destroy();
-  return NextResponse.redirect(new URL('/login', request.url), {
-    // 303: turn the POST into a GET for the redirect, so the browser does not re-POST
-    // to /login.
-    status: 303,
-  });
+  // 303: turn the POST into a GET for the redirect, so the browser does not re-POST to
+  // /login. A relative path, so it stays on the host the user signed out on — see
+  // `redirectToPath`.
+  return redirectToPath('/login', 303);
 }
 
 /** Answering GET would reintroduce exactly the CSRF hole POST-only closes. */

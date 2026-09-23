@@ -95,6 +95,11 @@ export interface SessionData {
   role?: Role;
   /** CSRF nonce for the Google OAuth round trip. Cleared as soon as it is consumed. */
   oauthState?: string;
+  /**
+   * The redirect URI the Google authorization request used, so the code exchange can
+   * repeat it byte for byte. Written and consumed alongside `oauthState`.
+   */
+  oauthRedirectUri?: string;
   /** Where to land after sign-in. Same-origin path only — see `safeRedirectPath`. */
   postLoginRedirect?: string;
 }

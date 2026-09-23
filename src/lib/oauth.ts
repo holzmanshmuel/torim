@@ -7,18 +7,21 @@
  * auth.ts and the tenant binding in tenant.ts.
  *
  * The flow, and where each guarantee comes from:
- *   1. /api/auth/google mints a random `state`, stores it in the sealed session, and
- *      sends the browser to Google.
- *   2. Google redirects back with `code` + `state`.
+ *   1. /api/auth/google mints a random `state`, stores it in the sealed session with
+ *      the redirect URI it chose (`resolveOAuthRedirectUri`), and sends the browser to
+ *      Google.
+ *   2. Google redirects back with `code` + `state`, to the host the sign-in started on.
  *   3. `verifyState` compares the returned `state` to the sealed one. This is the CSRF
  *      defence: an attacker can make a victim's browser hit our callback, but cannot
  *      write the victim's sealed cookie, so they cannot produce a matching state.
- *   4. The `code` is exchanged server-to-server (client secret never leaves the server),
- *      and the resulting access token is used to read the userinfo.
+ *   4. The `code` is exchanged server-to-server (client secret never leaves the server)
+ *      with the same redirect URI step 1 sent, and the resulting access token is used
+ *      to read the userinfo.
  *
  * Every environment read is lazy and throws at request time. Nothing here is evaluated
  * at import time, so a build machine with no Google credentials still builds.
  */
+import { allowedHosts } from './canonical-origin';
 
 /** Where the browser is sent to consent. */
 const GOOGLE_AUTHORIZE_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -59,10 +62,63 @@ export function getGoogleClientSecret(): string {
 
 /**
  * Must match the redirect URI registered in Google Cloud byte for byte, which is why it
- * is configuration and never derived from the incoming request.
+ * is configuration. It is the default for every sign-in; see `resolveOAuthRedirectUri`
+ * for the one case that swaps its host.
  */
 export function getOAuthRedirectUri(): string {
   return requireEnv('OAUTH_REDIRECT_URI');
+}
+
+/**
+ * The header a Host-rewriting reverse proxy uses to say which hostname the browser
+ * actually asked for. The proxy must SET it (overwrite, never append) on every request
+ * it forwards; see `resolveOAuthRedirectUri` for why a forged value still gains nothing.
+ */
+export const CANONICAL_HOST_HEADER = 'x-canonical-host';
+
+/**
+ * The redirect URI for a sign-in that started on `browserHost`.
+ *
+ * ── Why the host can vary ────────────────────────────────────────────────────
+ * The sealed session cookie that carries the `state` nonce is host-only: it goes back
+ * only to the hostname that set it. A deployment reachable under two names (typically
+ * the old and the new domain while moving) therefore cannot send every sign-in back to
+ * the one host in `OAUTH_REDIRECT_URI`: a sign-in started on the other name would
+ * return to a host that never saw its cookie, and fail the state check every time.
+ * So a sign-in comes back to the host it started on — the same scheme and path as
+ * `OAUTH_REDIRECT_URI`, on that host.
+ *
+ * ── Why this cannot be pointed somewhere else ────────────────────────────────
+ * Only a host on the deployment's own allowlist (`allowedHosts`: the host of
+ * `APP_BASE_URL` plus `SERVER_ACTIONS_ALLOWED_ORIGINS`) is ever used, compared exactly.
+ * Anything else — no header, an empty one, an unknown or forged host, a wildcard
+ * pattern — gets `OAUTH_REDIRECT_URI` unchanged, which is exactly what every sign-in
+ * got before this existed. A request cannot name an arbitrary host and have Google
+ * send the authorization code there; the worst a forged header can do is send the
+ * forger's own sign-in to another of this deployment's own hosts, where it fails the
+ * state check.
+ *
+ * Each host on the allowlist must have its callback URL registered with Google as an
+ * Authorized redirect URI, or sign-in on that host is refused by Google itself.
+ */
+export function resolveOAuthRedirectUri(browserHost: string | null | undefined): string {
+  const configured = getOAuthRedirectUri();
+
+  const host = browserHost?.trim().toLowerCase();
+  if (!host) return configured;
+
+  // Exact membership only. A wildcard is meaningful to Next's Server Action check, but
+  // a redirect URI has to be one concrete, registered URL.
+  const allowed = allowedHosts(process.env).filter((entry) => !entry.includes('*'));
+  if (!allowed.includes(host)) return configured;
+
+  const uri = new URL(configured);
+  // The configured host itself: hand back the configured string untouched, so the
+  // main address keeps sending Google the exact bytes it always has.
+  if (uri.host === host) return configured;
+
+  uri.host = host;
+  return uri.toString();
 }
 
 // ---------------------------------------------------------------------------
@@ -107,10 +163,15 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 // Step 1 — the authorization URL
 // ---------------------------------------------------------------------------
 
-export function buildGoogleAuthUrl(state: string): string {
+/**
+ * @param redirectUri where Google sends the browser back. The token exchange must
+ *   repeat exactly this value, so the caller keeps it (in the sealed session) for the
+ *   callback. Defaults to `OAUTH_REDIRECT_URI`.
+ */
+export function buildGoogleAuthUrl(state: string, redirectUri: string = getOAuthRedirectUri()): string {
   const url = new URL(GOOGLE_AUTHORIZE_ENDPOINT);
   url.searchParams.set('client_id', getGoogleClientId());
-  url.searchParams.set('redirect_uri', getOAuthRedirectUri());
+  url.searchParams.set('redirect_uri', redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', GOOGLE_SCOPES.join(' '));
   url.searchParams.set('state', state);
@@ -133,12 +194,19 @@ interface TokenResponse {
   id_token?: string;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<string> {
+/**
+ * @param redirectUri must be byte-identical to the one the authorization request sent,
+ *   or Google rejects the exchange. Defaults to `OAUTH_REDIRECT_URI`.
+ */
+export async function exchangeCodeForToken(
+  code: string,
+  redirectUri: string = getOAuthRedirectUri(),
+): Promise<string> {
   const body = new URLSearchParams({
     code,
     client_id: getGoogleClientId(),
     client_secret: getGoogleClientSecret(),
-    redirect_uri: getOAuthRedirectUri(),
+    redirect_uri: redirectUri,
     grant_type: 'authorization_code',
   });
 
@@ -227,6 +295,12 @@ export async function completeGoogleSignIn(params: {
   code: string | null | undefined;
   state: string | null | undefined;
   expectedState: string | undefined;
+  /**
+   * The redirect URI the authorization request used, as kept in the sealed session.
+   * Absent for a sign-in started before it was kept there, which used
+   * `OAUTH_REDIRECT_URI` — so that is the fallback.
+   */
+  redirectUri?: string;
 }): Promise<GoogleProfile> {
   verifyState(params.expectedState, params.state);
 
@@ -234,6 +308,9 @@ export async function completeGoogleSignIn(params: {
     throw new OAuthError('code_missing', 'Google did not return an authorization code.');
   }
 
-  const accessToken = await exchangeCodeForToken(params.code);
+  const accessToken = await exchangeCodeForToken(
+    params.code,
+    params.redirectUri || getOAuthRedirectUri(),
+  );
   return fetchGoogleProfile(accessToken);
 }
