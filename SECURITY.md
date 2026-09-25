@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Email **holzmanshmuel@gmail.com** with a description and, if you have one, steps to
+Email **shmuel@holzman.ai** with a description and, if you have one, steps to
 reproduce. This is a small, part-time-maintained open-source project — expect an
 acknowledgement within a few days, not a few hours, and no formal disclosure
 timeline or bug bounty. Please don't open a public issue for anything that could be
