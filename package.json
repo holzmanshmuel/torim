@@ -20,7 +20,7 @@
   "dependencies": {
     "iron-session": "^8.0.4",
     "luxon": "^3.7.2",
-    "next": "16.3.2",
+    "next": "16.4.5",
     "nodemailer": "^9.0.5",
     "pg": "^8.23.0",
     "react": "19.2.8",
@@ -40,7 +40,7 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "16.3.2",
+    "eslint-config-next": "16.4.5",
     "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
