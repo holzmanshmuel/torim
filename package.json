@@ -21,7 +21,7 @@
     "iron-session": "^8.0.4",
     "luxon": "^3.7.2",
     "next": "16.4.5",
-    "nodemailer": "^9.0.5",
+    "nodemailer": "^10.5.0",
     "pg": "^8.23.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
